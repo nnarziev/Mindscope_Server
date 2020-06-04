@@ -17,13 +17,13 @@ import et_service_pb2_grpc
 # It runs a prediction_task() function at every prediction time (prediction_times)
 # Inside prediction task we have following steps for each user in the study:
 # Step1: retrieve the users' data from the gRPC server (John) - Done
-# Step2: check user self report and update the DB of pre-processed features with reported stress label if there is self report from user
-# Step3: extract features from retrieved data (John) - Done
-# Step4: pre-process and normalize the extracted features (Soyoung) - Need to integrate
-# Step5: init StressModel by taking pre-processed data from DB and normalizing (Soyoung) - Need to integrate
-# Step6: make prediction using current features with that model (Soyoung) - Need to integrate
-# Step7: save current features prediction as label to DB (John)
-# Step8: return prediction to gRPC server (John)
+# Step2: extract features from retrieved data (John) - Done
+# Step3: pre-process and normalize the extracted features (Soyoung) - Need to integrate
+# Step4: init StressModel by taking pre-processed data from DB and normalizing (Soyoung) - Need to integrate
+# Step5: make prediction using current features with that model (Soyoung) - Need to integrate
+# Step6: save current features prediction as label to DB (John)
+# Step7: return prediction to gRPC server (John)
+# Step8: check user self report and update the DB of pre-processed features with reported stress label if there is self report from user
 #################################################################################################
 
 
@@ -82,46 +82,37 @@ def prediction_task(i):
         # get all user data from gRPC server between start_ts and end_ts
         data = grpc_load_user_data(start_ts=start_time, end_ts=end_time, uid=user_email)
 
-        # TODO: 2. check user self report and update the DB of pre-processed features with reported stress label if if there is self report from user
+        # TODO: 2. extract features from retrieved data (Done)
+        features = Features(uid=user[0], dataset=data)
+        df = pd.DataFrame(features.extract())
+
+        # TODO: 3. pre-process and normalize the extracted features (Soyoung)
+
+        # TODO: 4. init StressModel here (Soyoung)
+
+        # TODO: 5. make prediction using current features with that model (Soyoung)
+
+        # TODO: 6. save current features prediction as label to DB (Soyoung)
+        # insert a new pre-processed feature entry in DB with predicted label
+
+        # TODO: 7. return prediction to gRPC server (John)
+        # Send the prediction with "STRESS_PREDICTION" data source and "day_num ema_order prediction_value" value
+
+        # TODO: 8. check user self report and update the DB of pre-processed features with reported stress label if if there is self report from user
         # check 'SELF_STRESS_REPORT' data source for user and run retrain if needed and retrain
         # region Retrain the models with prev self reports
         sr_day_num = 0
         sr_ema_order = 0
         sr_value = -1  # self report value
-        if data['SELF_STRESS_REPORT'][-1][1]: # data['SELF_STRESS_REPORT'][-1][1] takes the value of the latest SELF_STRESS_REPORT data source
+        if data['SELF_STRESS_REPORT'][-1][1]:  # data['SELF_STRESS_REPORT'][-1][1] takes the value of the latest SELF_STRESS_REPORT data source
             sr_day_num, sr_ema_order, sr_value = [int(i) for i in data['SELF_STRESS_REPORT'][-1][1].split(" ")]
-        # check if this this self report exists
-        self_report_to_update = models.Feature.objects.get(uid=user_email, day_num=sr_day_num, ema_order=sr_ema_order)
-        # if not then update the feature DB below using this self report as label
-        if self_report_to_update.updated_flag == False:
-            self_report_to_update.label = sr_value
-            self_report_to_update.updated_flag = True
-            self_report_to_update.save()
 
-        # TODO: 3. extract features from retrieved data (Done)
-        features = Features(uid=user[0], dataset=data)
-        df = pd.DataFrame(features.extract())
-
-        # TODO: 4. pre-process and normalize the extracted features (Soyoung)
-
-        # TODO: 5. init StressModel by taking pre-processed data from DB and normalizing (Soyoung)
-
-        # TODO: 6. make prediction using current features with that model (Soyoung)
-
-        # TODO: 7. save current features prediction as label to DB (John)
-        # create a new pre-processed feature entry in DB with predicted label
-        models.Feature.objects.create(
-            uid=user[0],
-            timestamp=now,
-            day_num=day_num,
-            ema_order=ema_order,
-            label=predicted_label,
-            feature_set=pre_processed_features,
-            updated_flag=False
-        )
-
-        # TODO: 8. return prediction to gRPC server (John)
-        # Send the prediction with "STRESS_PREDICTION" data source and "day_num ema_order prediction_value" value
+        model_result_to_update = models.ModelResult.objects.get(uid=user_email, day_num=sr_day_num, ema_order=sr_ema_order, prediction_result=sr_value)
+        # check if this result was not already updated by the user, if it wasn't then update the user tag and re-train the model
+        if model_result_to_update.user_tag == False:
+            model_result_to_update.user_tag = True
+            model_result_to_update.save()
+            # TODO : retrain the model here
     grpc_close()
 
 

@@ -518,29 +518,29 @@ class Features:
 
             end_time = datetime.datetime.now().timestamp()
             start_time = end_time - 10800  # 10800sec = 3hours before each EMA
-            unlock_data = self.get_unlock_result(self.dataset[self.uid][self.UNLOCK_DURATION], start_time, end_time)
-            phonecall_data = self.get_phonecall_result(self.dataset[self.uid][self.CALLS], start_time, end_time)
-            activities_total_dur = self.get_activities_dur_result(self.dataset[self.uid][self.ACTIVITY_TRANSITION], start_time, end_time)
-            dif_activities = self.get_num_of_dif_activities_result(self.dataset[self.uid][self.ACTIVITY_RECOGNITION], start_time, end_time)
-            audio_data = self.get_audio_data_result(self.dataset[self.uid][self.AUDIO_LOUDNESS], start_time, end_time)
-            total_dist_data = self.get_total_distance_result(self.dataset[self.uid][self.TOTAL_DIST_COVERED], start_time, end_time)
-            max_dist = self.get_max_dis_result(self.dataset[self.uid][self.MAX_DIST_FROM_HOME], start_time, end_time)
-            gyration = self.get_radius_of_gyration_result(self.dataset[self.uid][self.RADIUS_OF_GYRATION], start_time, end_time)
-            max_home = self.get_max_dist_from_home_result(self.dataset[self.uid][self.MAX_DIST_FROM_HOME], start_time, end_time)
-            num_places = self.get_num_of_places_result(self.dataset[self.uid][self.NUM_OF_DIF_PLACES], start_time, end_time)
-            time_at = self.get_time_at_location(self.dataset[self.uid][self.GEOFENCE], start_time, end_time, self.LOCATION_HOME)
+            unlock_data = self.get_unlock_result(self.dataset[self.UNLOCK_DURATION], start_time, end_time)
+            phonecall_data = self.get_phonecall_result(self.dataset[self.CALLS], start_time, end_time)
+            activities_total_dur = self.get_activities_dur_result(self.dataset[self.ACTIVITY_TRANSITION], start_time, end_time)
+            dif_activities = self.get_num_of_dif_activities_result(self.dataset[self.ACTIVITY_RECOGNITION], start_time, end_time)
+            audio_data = self.get_audio_data_result(self.dataset[self.AUDIO_LOUDNESS], start_time, end_time)
+            total_dist_data = self.get_total_distance_result(self.dataset[self.TOTAL_DIST_COVERED], start_time, end_time)
+            max_dist = self.get_max_dis_result(self.dataset[self.MAX_DIST_FROM_HOME], start_time, end_time)
+            gyration = self.get_radius_of_gyration_result(self.dataset[self.RADIUS_OF_GYRATION], start_time, end_time)
+            max_home = self.get_max_dist_from_home_result(self.dataset[self.MAX_DIST_FROM_HOME], start_time, end_time)
+            num_places = self.get_num_of_places_result(self.dataset[self.NUM_OF_DIF_PLACES], start_time, end_time)
+            time_at = self.get_time_at_location(self.dataset[self.GEOFENCE], start_time, end_time, self.LOCATION_HOME)
 
             unlock_at = self.get_unlock_duration_at_location(
-                self.dataset[self.uid][self.GEOFENCE],
-                self.dataset[self.uid][self.UNLOCK_DURATION],
+                self.dataset[self.GEOFENCE],
+                self.dataset[self.UNLOCK_DURATION],
                 start_time, end_time, self.LOCATION_HOME)
 
             pc_audio_data = self.get_pc_audio_data_result(
-                self.dataset[self.uid][self.CALLS],
-                self.dataset[self.uid][self.AUDIO_LOUDNESS],
+                self.dataset[self.CALLS],
+                self.dataset[self.AUDIO_LOUDNESS],
                 start_time, end_time)
 
-            app_usage = self.get_app_category_usage(self.dataset[self.uid][self.APPLICATION_USAGE], start_time, end_time)
+            app_usage = self.get_app_category_usage(self.dataset[self.APPLICATION_USAGE], start_time, end_time)
 
             # day_hour_start = 18
             # day_hour_end = 10
@@ -606,13 +606,13 @@ class Features:
 
             datasets.append(data)  # dataset of rows
             # Finally, save the file here
-            #header = True
+            # header = True
             for dataset in datasets:
                 df = pd.DataFrame(dataset, index=[0])
                 df = df[columns]
                 # mode = 'w' if header else 'a'
                 # df.to_csv('./features_{0}.csv'.format(self.uid), encoding='utf-8', mode=mode, header=header, index=False)
-                #header = False
+                # header = False
             return df
         except Exception as e:
             print("Ex: ", e)
