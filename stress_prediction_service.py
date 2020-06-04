@@ -1,3 +1,5 @@
+import pickle
+
 from feature_extraction import Features
 from Mindscope_Server import models
 import threading
@@ -10,6 +12,8 @@ import datetime
 
 import et_service_pb2
 import et_service_pb2_grpc
+
+from stress_model import StressModel
 
 # Notes:
 #################################################################################################
@@ -69,34 +73,63 @@ def prediction_task(i):
     now_datetime = datetime.datetime.now()
     end_time = int(now_datetime.replace(hour=prediction_times[i], minute=0, second=0).timestamp()) * 1000
     if i == 0:
-        start_time = end_time - (4 * 3600 * 1000)  # hard coded 4 hours (difference between prediction times during the day)
+        start_time = end_time - (
+                4 * 3600 * 1000)  # hard coded 4 hours (difference between prediction times during the day)
     else:
         start_time = int(now_datetime.replace(hour=prediction_times[i - 1], minute=0, second=0).timestamp()) * 1000
 
     users_info = grpc_load_user_emails()
 
-    for user in users_info:
-        user_email = user[0]  # user[0]=user_email
-        user_id = user[1]  # user[1]=user_id
+    for user_email, id_day in users_info.items():
+        user_id = id_day['uid']  # user[1]=user_id
+        day_num = id_day['dayNum']  # user[1]=user_id
+        sm = StressModel(uid=user_email, dayNo=day_num, emaNo=i + 1)
         # TODO: 1. retrieve the data from the gRPC server (Done)
         # get all user data from gRPC server between start_ts and end_ts
         data = grpc_load_user_data(start_ts=start_time, end_ts=end_time, uid=user_email)
 
         # TODO: 2. extract features from retrieved data (Done)
-        features = Features(uid=user[0], dataset=data)
+        with open('data_result/' + str(user_email) + "_features.p", 'rb') as file:
+            step1_preprocessed = pickle.load(file)
+        features = Features(uid=user_email, dataset=data)
         df = pd.DataFrame(features.extract())
-
+        df_features = df[df['User id'] == user_email]
+        new_row = df_features.iloc[10, :]
+        new_row_df = pd.DataFrame(new_row).transpose()
         # TODO: 3. pre-process and normalize the extracted features (Soyoung)
-
+        new_row_preprocessed = sm.preprocessing(new_row_df)
+        norm_df = sm.normalizing("new", step1_preprocessed, new_row_preprocessed)
         # TODO: 4. init StressModel here (Soyoung)
+        # get test dasta
+        new_row_for_test = norm_df[(norm_df['Day'] == day_num) & (norm_df['EMA order'] == i + 1)]
+
+        ## get trained model
+        with open('model_result/' + str(user_email) + "_model.p", 'rb') as file:
+            initModel = pickle.load(file)
 
         # TODO: 5. make prediction using current features with that model (Soyoung)
+
+        features = StressModel.feature_df_with_state['features'].values
+
+        y_pred = initModel.predict(new_row_for_test[features])
+
+        new_row['Sterss_label'] = y_pred
 
         # TODO: 6. save current features prediction as label to DB (Soyoung)
         # insert a new pre-processed feature entry in DB with predicted label
 
-        # TODO: 7. return prediction to gRPC server (John)
+        # DATA- , Model UPDATE
+        update_df = pd.concat([step1_preprocessed.reset_index(drop=True), new_row_preprocessed.reset_index(drop=True)])
+
+        with open('data_result/' + str(user_email) + "_features.p", 'wb') as file:
+            pickle.dump(update_df, file)
+
+        # TODO: 7. save prediction in DB and return it to gRPC server (John)
         # Send the prediction with "STRESS_PREDICTION" data source and "day_num ema_order prediction_value" value
+        user_all_labels = list(set(step1_preprocessed['Stress_label']))
+        model_results = list(sm.getSHAP(user_all_labels, y_pred, new_row_for_test,
+                                        initModel))  # saves results on ModelResult table in DB
+        # TODO: construct a message from model results and return it to gRPC server
 
         # TODO: 8. check user self report and update the DB of pre-processed features with reported stress label if if there is self report from user
         # check 'SELF_STRESS_REPORT' data source for user and run retrain if needed and retrain
@@ -104,15 +137,15 @@ def prediction_task(i):
         sr_day_num = 0
         sr_ema_order = 0
         sr_value = -1  # self report value
-        if data['SELF_STRESS_REPORT'][-1][1]:  # data['SELF_STRESS_REPORT'][-1][1] takes the value of the latest SELF_STRESS_REPORT data source
+        if data['SELF_STRESS_REPORT'][-1][
+            1]:  # data['SELF_STRESS_REPORT'][-1][1] takes the value of the latest SELF_STRESS_REPORT data source
             sr_day_num, sr_ema_order, sr_value = [int(i) for i in data['SELF_STRESS_REPORT'][-1][1].split(" ")]
 
-        model_result_to_update = models.ModelResult.objects.get(uid=user_email, day_num=sr_day_num, ema_order=sr_ema_order, prediction_result=sr_value)
+        model_result_to_update = models.ModelResult.objects.get(uid=user_email, day_num=sr_day_num,
+                                                                ema_order=sr_ema_order, prediction_result=sr_value)
         # check if this result was not already updated by the user, if it wasn't then update the user tag and re-train the model
         if model_result_to_update.user_tag == False:
-            model_result_to_update.user_tag = True
-            model_result_to_update.save()
-            # TODO : retrain the model here
+            sm.update(sr_value)
     grpc_close()
 
 
@@ -133,7 +166,7 @@ def grpc_close():
 def grpc_load_user_emails():
     global grpc_stub
 
-    user_info = []
+    user_info = {}
     # retrieve participant emails
     request = et_service_pb2.RetrieveParticipantsRequestMessage(
         userId=2,
@@ -144,7 +177,21 @@ def grpc_load_user_emails():
     if not response.doneSuccessfully:
         return False
     for idx, email in enumerate(response.email):
-        user_info.append((email, response.userId[idx]))
+        user_info[email] = {}
+        user_info[email]['uid'] = response.userId[idx]
+        # user_info.append((email, response.userId[idx]))
+
+    for email, id in user_info.items():
+        request = et_service_pb2.RetrieveParticipantStatisticsRequestMessage(
+            userId=2,
+            email='nnarziev@nsl.inha.ac.kr',
+            targetEmail=email,
+            targetCampaignId=10
+        )
+        response = grpc_stub.retrieveParticipantStatistics(request)
+        if not response.doneSuccessfully:
+            return False
+        user_info[email]['dayNum'] = joinTimestampToDayNum(response.campaignJoinTimestamp)
 
     return user_info
 
@@ -187,4 +234,9 @@ def grpc_load_user_data(start_ts, end_ts, uid):
 
 def grpc_send_user_data(timestamp, value):
     global grpc_stub
+    pass
+
+
+def joinTimestampToDayNum(timestamp):
+    # TODO: write a code to compute the current day number for participant
     pass

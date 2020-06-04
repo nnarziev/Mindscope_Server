@@ -1,9 +1,10 @@
 from django.db import models
+import datetime
 
 
 class ModelResult(models.Model):
     uid = models.TextField()
-    timestamp = models.BigIntegerField(default=0)
+    timestamp = models.DateTimeField(default=datetime.datetime.now(), blank=True)
     day_num = models.IntegerField(default=0)
     ema_order = models.SmallIntegerField(default=0)
     prediction_result = models.SmallIntegerField(default=-1)
