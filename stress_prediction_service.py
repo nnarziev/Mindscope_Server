@@ -27,7 +27,6 @@ import et_service_pb2_grpc
 #################################################################################################
 
 
-
 prediction_times = [10, 14, 18, 22]
 run_service = None
 thread = None
@@ -77,20 +76,22 @@ def prediction_task(i):
     users_info = grpc_load_user_emails()
 
     for user in users_info:
+        user_email = user[0]  # user[0]=user_email
+        user_id = user[1]  # user[1]=user_id
         # TODO: 1. retrieve the data from the gRPC server (Done)
         # get all user data from gRPC server between start_ts and end_ts
-        data = grpc_load_user_data(start_ts=start_time, end_ts=end_time, uid=user[0])  # user[0]=user_email; user[1]=user_id
+        data = grpc_load_user_data(start_ts=start_time, end_ts=end_time, uid=user_email)
 
         # TODO: 2. check user self report and update the DB of pre-processed features with reported stress label if if there is self report from user
         # check 'SELF_STRESS_REPORT' data source for user and run retrain if needed and retrain
         # region Retrain the models with prev self reports
         sr_day_num = 0
         sr_ema_order = 0
-        sr_value = 0  # self report value
-        if data[user[0]]['SELF_STRESS_REPORT'][-1][1]:
-            sr_day_num, sr_ema_order, sr_value = [int(i) for i in data[user[0]]['SELF_STRESS_REPORT'][-1][1].split(" ")]
+        sr_value = -1  # self report value
+        if data['SELF_STRESS_REPORT'][-1][1]: # data['SELF_STRESS_REPORT'][-1][1] takes the value of the latest SELF_STRESS_REPORT data source
+            sr_day_num, sr_ema_order, sr_value = [int(i) for i in data['SELF_STRESS_REPORT'][-1][1].split(" ")]
         # check if this this self report exists
-        self_report_to_update = models.Feature.objects.get(uid=user[0], day_num=sr_day_num, ema_order=sr_ema_order)
+        self_report_to_update = models.Feature.objects.get(uid=user_email, day_num=sr_day_num, ema_order=sr_ema_order)
         # if not then update the feature DB below using this self report as label
         if self_report_to_update.updated_flag == False:
             self_report_to_update.label = sr_value
@@ -174,9 +175,8 @@ def grpc_load_user_data(start_ts, end_ts, uid):
 
     # retrieve data of each participant
     data = {}
-    data[uid] = {}
     for data_source_name in data_sources:
-        data[uid][data_source_name] = []
+        data[data_source_name] = []
         request = et_service_pb2.RetrieveFilteredDataRecordsRequestMessage(
             userId=2,
             email='nnarziev@nsl.inha.ac.kr',
@@ -189,7 +189,7 @@ def grpc_load_user_data(start_ts, end_ts, uid):
         response = grpc_stub.retrieveFilteredDataRecords(request)
         if response.doneSuccessfully:
             for ts, vl in zip(response.timestamp, response.value):
-                data[uid][data_source_name] += [(ts, vl)]
+                data[data_source_name] += [(ts, vl)]
     # print(data)
     return data
 
