@@ -5,15 +5,11 @@ from Mindscope_Server import models
 import threading
 import schedule
 import time
-import grpc
 import pandas as pd
-import json
 import datetime
 
-import et_service_pb2
-import et_service_pb2_grpc
-
 from stress_model import StressModel
+from grpc_handler import GrpcHandler
 
 # Notes:
 #################################################################################################
@@ -37,8 +33,6 @@ survey_duration = 14  # in days
 
 run_service = None
 thread = None
-grpc_stub = None
-grpc_channel = None
 manager_email = 'nnarziev@nsl.inha.ac.kr'
 manager_id = 2
 campaign_id = 1
@@ -74,14 +68,15 @@ def service_routine():
 
 def prediction_task(i):
     print("Prediction task for {} is running... ".format(prediction_times[i]))
-    grpc_init()
+    grpc_handler = GrpcHandler('165.246.21.202:50051', manager_id, manager_email, campaign_id)
 
     now_time = int(datetime.datetime.now().timestamp()) * 1000
     from_time = now_time - (4 * 3600 * 1000)  # from 4 hours before now time
 
-    users_info = grpc_load_user_emails()
+    users_info = grpc_handler.grpc_load_user_emails()
     ema_order = i + 1
 
+    data_sources = grpc_handler.grpc_get_data_sources_info()
     for user_email, id_day in users_info.items():
         user_id = id_day['uid']
         day_num = id_day['dayNum']
@@ -90,11 +85,11 @@ def prediction_task(i):
         # TODO: 0. check users day num if it's more than 14 days, only then extract features for 14 days and init the model
         if day_num > survey_duration:
             # if the first day and the first ema order after 14days
-            if day_num == 15 and ema_order == 1:
+            if day_num == survey_duration + 1 and ema_order == 1:
                 # first model init based on 14 days data
 
                 from_time = 0  # from the very beginning of data collection
-                data = grpc_load_user_data(from_ts=from_time, uid=user_email)
+                data = grpc_handler.grpc_load_user_data(from_ts=from_time, uid=user_email, data_sources=data_sources)
                 features = Features(uid=user_email, dataset=data)
                 df = pd.DataFrame(features.extract())
                 df_features = df[df['User id'] == user_email]
@@ -109,10 +104,13 @@ def prediction_task(i):
 
                 # init model
                 sm.initModel(norm_df)
+
+                # TODO: return prediction message to gRPC for user to see
+
             else:
                 # TODO: 1. retrieve the data from the gRPC server (Done)
                 # get all user data from gRPC server between start_ts and end_ts
-                data = grpc_load_user_data(from_ts=from_time, uid=user_email)
+                data = grpc_handler.grpc_load_user_data(from_ts=from_time, uid=user_email, data_sources=data_sources)
 
                 # TODO: 2. extract features from retrieved data (Done)
                 with open('data_result/' + str(user_email) + "_features.p", 'rb') as file:
@@ -126,7 +124,7 @@ def prediction_task(i):
                 new_row_preprocessed = sm.preprocessing(new_row_df)
                 norm_df = sm.normalizing("new", step1_preprocessed, new_row_preprocessed)
                 # TODO: 4. init StressModel here (Soyoung)
-                # get test dasta
+                # get test data
                 new_row_for_test = norm_df[(norm_df['Day'] == day_num) & (norm_df['EMA order'] == ema_order)]
 
                 ## get trained model
@@ -154,7 +152,17 @@ def prediction_task(i):
                 # Send the prediction with "STRESS_PREDICTION" data source and "day_num ema_order prediction_value" value
                 user_all_labels = list(set(step1_preprocessed['Stress_label']))
                 model_results = list(sm.getSHAP(user_all_labels, y_pred, new_row_for_test, initModel))  # saves results on ModelResult table in DB
-                # TODO: construct a message from model results and return it to gRPC server
+
+                # construct a message from model results and return it to gRPC server
+                result_data = {}
+                for model_result in model_results:
+                    result_data[model_result.prediction_result] = {
+                        "day_num": model_result.day_num,
+                        "ema_order": model_result.ema_order,
+                        "accuracy": model_result.accuracy,
+                        "feature_ids": model_result.feature_ids
+                    }
+                grpc_handler.grpc_send_user_data(user_id, user_email, data_sources['STRESS_PREDICTION'], now_time, result_data)
 
                 # TODO: 8. check user self report and update the DB of pre-processed features with reported stress label if if there is self report from user
                 # check 'SELF_STRESS_REPORT' data source for user and run retrain if needed and retrain
@@ -170,119 +178,4 @@ def prediction_task(i):
                 if model_result_to_update.user_tag == False:
                     sm.update(sr_value)
 
-    grpc_close()
-
-
-def grpc_init():
-    global grpc_stub, grpc_channel
-    # open a gRPC channel
-    channel = grpc.insecure_channel('165.246.21.202:50051')
-
-    # create a stub (client)
-    grpc_stub = et_service_pb2_grpc.ETServiceStub(channel)
-
-
-def grpc_close():
-    global grpc_channel
-    grpc_channel.close()
-
-
-def grpc_load_user_emails():
-    global grpc_stub
-
-    user_info = {}
-    # retrieve participant emails
-    request = et_service_pb2.RetrieveParticipantsRequestMessage(
-        userId=2,
-        email='nnarziev@nsl.inha.ac.kr',
-        campaignId=10
-    )
-    response = grpc_stub.retrieveParticipants(request)
-    if not response.doneSuccessfully:
-        return False
-    for idx, email in enumerate(response.email):
-        user_info[email] = {}
-        user_info[email]['uid'] = response.userId[idx]
-        # user_info.append((email, response.userId[idx]))
-
-    for email, id in user_info.items():
-        request = et_service_pb2.RetrieveParticipantStatisticsRequestMessage(
-            userId=2,
-            email='nnarziev@nsl.inha.ac.kr',
-            targetEmail=email,
-            targetCampaignId=10
-        )
-        response = grpc_stub.retrieveParticipantStatistics(request)
-        if not response.doneSuccessfully:
-            return False
-        user_info[email]['dayNum'] = joinTimestampToDayNum(response.campaignJoinTimestamp)
-
-    return user_info
-
-
-def grpc_load_user_data(from_ts, uid):
-    global grpc_stub
-    # retrieve campaign details --> data source ids
-    request = et_service_pb2.RetrieveCampaignRequestMessage(
-        userId=2,
-        email='nnarziev@nsl.inha.ac.kr',
-        campaignId=10
-    )
-    response = grpc_stub.retrieveCampaign(request)
-    if not response.doneSuccessfully:
-        return False
-    data_sources = {}
-    for data_source in json.loads(response.configJson):
-        data_sources[data_source['name']] = data_source['data_source_id']
-
-    # retrieve data of each participant
-    data = {}
-    data[uid] = {}
-    for data_source_name in data_sources:
-        data[uid][data_source_name] = []
-        data_available = True
-        while data_available:
-            grpc_req = et_service_pb2.Retrieve100DataRecordsRequestMessage(
-                userId=manager_id,
-                email=manager_email,
-                targetEmail=uid,
-                targetCampaignId=campaign_id,
-                targetDataSourceId=data_sources[data_source_name],
-                fromTimestamp=from_ts
-            )
-            grpc_res = grpc_stub.retrieve100DataRecords(grpc_req)
-            if grpc_res.doneSuccessfully:
-                for timestamp, value in zip(grpc_res.timestamp, grpc_res.value):
-                    from_time = timestamp
-                    data[uid][data_source_name] += [(timestamp, value)]
-            data_available = grpc_res.doneSuccessfully and grpc_res.moreDataAvailable
-        # print(data)
-
-    # for data_source_name in data_sources:
-    #     data[data_source_name] = []
-    #     request = et_service_pb2.RetrieveFilteredDataRecordsRequestMessage(
-    #         userId=2,
-    #         email='nnarziev@nsl.inha.ac.kr',
-    #         targetEmail=uid,
-    #         targetCampaignId=10,
-    #         targetDataSourceId=data_sources[data_source_name],
-    #         fromTimestamp=start_ts,
-    #         tillTimestamp=end_ts
-    #     )
-    #     response = grpc_stub.retrieveFilteredDataRecords(request)
-    #     if response.doneSuccessfully:
-    #         for ts, vl in zip(response.timestamp, response.value):
-    #             data[data_source_name] += [(ts, vl)]
-    # print(data)
-    return data
-
-
-def grpc_send_user_data(timestamp, value):
-    global grpc_stub
-    pass
-
-
-def joinTimestampToDayNum(joinTimestamp):
-    # TODO: write a code to compute the current day number for participant
-    nowTime = int(datetime.datetime.now().timestamp()) * 1000
-    return int((nowTime - joinTimestamp) / 1000 / 3600 / 24)
+    grpc_handler.grpc_close()

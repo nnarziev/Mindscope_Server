@@ -15,7 +15,6 @@ import shap
 import pandas as pd
 
 
-
 class StressModel:
     # variable for setting label
 

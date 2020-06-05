@@ -1,0 +1,125 @@
+import grpc
+import json
+import datetime
+import et_service_pb2
+import et_service_pb2_grpc
+
+
+class GrpcHandler:
+
+    def __init__(self, server_ip_port, manager_id, manager_email, campaign_id):
+        self.channel = grpc.insecure_channel(server_ip_port)
+        self.stub = et_service_pb2_grpc.ETServiceStub(self.channel)
+        self.manager_id = manager_id
+        self.manager_email = manager_email
+        self.campaign_id = campaign_id
+
+    def grpc_close(self):
+        self.channel.close()
+
+    def grpc_load_user_emails(self):
+        user_info = {}
+        # retrieve participant emails
+        request = et_service_pb2.RetrieveParticipantsRequestMessage(
+            userId=self.manager_id,
+            email=self.manager_email,
+            campaignId=self.campaign_id
+        )
+        response = grpc_stub.retrieveParticipants(request)
+        if not response.doneSuccessfully:
+            return False
+        for idx, email in enumerate(response.email):
+            user_info[email] = {}
+            user_info[email]['uid'] = response.userId[idx]
+            # user_info.append((email, response.userId[idx]))
+
+        for email, id in user_info.items():
+            request = et_service_pb2.RetrieveParticipantStatisticsRequestMessage(
+                userId=self.manager_id,
+                email=self.manager_email,
+                targetEmail=email,
+                targetCampaignId=self.campaign_id
+            )
+            response = grpc_stub.retrieveParticipantStatistics(request)
+            if not response.doneSuccessfully:
+                return False
+
+            user_info[email]['dayNum'] = self.joinTimestampToDayNum(response.campaignJoinTimestamp)
+
+        return user_info
+
+    def grpc_get_data_sources_info(self):
+        # retrieve campaign details --> data source ids
+        request = et_service_pb2.RetrieveCampaignRequestMessage(
+            userId=self.manager_id,
+            email=self.manager_email,
+            campaignId=self.campaign_id
+        )
+        response = grpc_stub.retrieveCampaign(request)
+        if not response.doneSuccessfully:
+            return False
+        data_sources = {}
+        for data_source in json.loads(response.configJson):
+            data_sources[data_source['name']] = data_source['data_source_id']
+
+        return data_sources
+
+    def grpc_load_user_data(self, from_ts, uid, data_sources):
+        global grpc_stub
+        # retrieve data of each participant
+        data = {}
+        data[uid] = {}
+        for data_source_name in data_sources:
+            data[uid][data_source_name] = []
+            data_available = True
+            while data_available:
+                grpc_req = et_service_pb2.Retrieve100DataRecordsRequestMessage(
+                    userId=self.manager_id,
+                    email=self.manager_email,
+                    targetEmail=uid,
+                    targetCampaignId=self.campaign_id,
+                    targetDataSourceId=data_sources[data_source_name],
+                    fromTimestamp=from_ts
+                )
+                grpc_res = grpc_stub.retrieve100DataRecords(grpc_req)
+                if grpc_res.doneSuccessfully:
+                    for timestamp, value in zip(grpc_res.timestamp, grpc_res.value):
+                        from_time = timestamp
+                        data[uid][data_source_name] += [(timestamp, value)]
+                data_available = grpc_res.doneSuccessfully and grpc_res.moreDataAvailable
+            # print(data)
+
+        # for data_source_name in data_sources:
+        #     data[data_source_name] = []
+        #     request = et_service_pb2.RetrieveFilteredDataRecordsRequestMessage(
+        #         userId=2,
+        #         email='nnarziev@nsl.inha.ac.kr',
+        #         targetEmail=uid,
+        #         targetCampaignId=10,
+        #         targetDataSourceId=data_sources[data_source_name],
+        #         fromTimestamp=start_ts,
+        #         tillTimestamp=end_ts
+        #     )
+        #     response = grpc_stub.retrieveFilteredDataRecords(request)
+        #     if response.doneSuccessfully:
+        #         for ts, vl in zip(response.timestamp, response.value):
+        #             data[data_source_name] += [(ts, vl)]
+        # print(data)
+        return data
+
+    def grpc_send_user_data(self, user_id, user_email, data_src, timestamp, value):
+        global grpc_stub
+        req = et_service_pb2.SubmitDataRecordsRequestMessage(
+            userId=user_id,
+            email=user_email,
+            timestamp=timestamp,
+            dataSource=data_src,
+            accuracy=1,
+            values=value
+        )
+        response = grpc_stub.submitDataRecords(req)
+        print(response)
+
+    def joinTimestampToDayNum(self, joinTimestamp):
+        nowTime = int(datetime.datetime.now().timestamp()) * 1000
+        return int((nowTime - joinTimestamp) / 1000 / 3600 / 24)
