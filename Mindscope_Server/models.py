@@ -1,7 +1,6 @@
 from django.db import models
 import datetime
 
-
 class ModelResult(models.Model):
     uid = models.TextField()
     timestamp = models.DateTimeField(default=datetime.datetime.now(), blank=True)

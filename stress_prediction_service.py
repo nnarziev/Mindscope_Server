@@ -20,6 +20,7 @@ from stress_model import StressModel
 # This is the Mindscope Server application
 # It runs a prediction_task() function at every prediction time (prediction_times)
 # Inside prediction task we have following steps for each user in the study:
+# Step0. check users day num if it's more than 14 days, only then extract features for 14 days and init the model
 # Step1: retrieve the users' data from the gRPC server (John) - Done
 # Step2: extract features from retrieved data (John) - Done
 # Step3: pre-process and normalize the extracted features (Soyoung) - Need to integrate
@@ -36,6 +37,8 @@ run_service = None
 thread = None
 grpc_stub = None
 grpc_channel = None
+
+survey_duration = 14  # in days
 
 
 def start():
@@ -73,79 +76,101 @@ def prediction_task(i):
     now_datetime = datetime.datetime.now()
     end_time = int(now_datetime.replace(hour=prediction_times[i], minute=0, second=0).timestamp()) * 1000
     if i == 0:
-        start_time = end_time - (
-                4 * 3600 * 1000)  # hard coded 4 hours (difference between prediction times during the day)
+        start_time = end_time - (4 * 3600 * 1000)  # hard coded 4 hours (difference between prediction times during the day)
     else:
         start_time = int(now_datetime.replace(hour=prediction_times[i - 1], minute=0, second=0).timestamp()) * 1000
 
     users_info = grpc_load_user_emails()
-
+    ema_order = i + 1
     for user_email, id_day in users_info.items():
         user_id = id_day['uid']  # user[1]=user_id
         day_num = id_day['dayNum']  # user[1]=user_id
-        sm = StressModel(uid=user_email, dayNo=day_num, emaNo=i + 1)
-        # TODO: 1. retrieve the data from the gRPC server (Done)
-        # get all user data from gRPC server between start_ts and end_ts
-        data = grpc_load_user_data(start_ts=start_time, end_ts=end_time, uid=user_email)
+        sm = StressModel(uid=user_email, dayNo=day_num, emaNo=ema_order)
 
-        # TODO: 2. extract features from retrieved data (Done)
-        with open('data_result/' + str(user_email) + "_features.p", 'rb') as file:
-            step1_preprocessed = pickle.load(file)
-        features = Features(uid=user_email, dataset=data)
-        df = pd.DataFrame(features.extract())
-        df_features = df[df['User id'] == user_email]
-        new_row = df_features.iloc[10, :]
-        new_row_df = pd.DataFrame(new_row).transpose()
-        # TODO: 3. pre-process and normalize the extracted features (Soyoung)
-        new_row_preprocessed = sm.preprocessing(new_row_df)
-        norm_df = sm.normalizing("new", step1_preprocessed, new_row_preprocessed)
-        # TODO: 4. init StressModel here (Soyoung)
-        # get test dasta
-        new_row_for_test = norm_df[(norm_df['Day'] == day_num) & (norm_df['EMA order'] == i + 1)]
+        # TODO: 0. check users day num if it's more than 14 days, only then extract features for 14 days and init the model
+        if day_num > survey_duration:
+            # if the first day and the first ema order after 14days
+            if day_num == 15 and ema_order == 1:
+                # first model init based on 14 days data
 
-        ## get trained model
-        with open('model_result/' + str(user_email) + "_model.p", 'rb') as file:
-            initModel = pickle.load(file)
+                start_time = 0  # from the very beginning of data collection
+                end_time = int(now_datetime.replace(hour=prediction_times[i], minute=0, second=0).timestamp()) * 1000
 
-        # TODO: 5. make prediction using current features with that model (Soyoung)
+                data = grpc_load_user_data(start_ts=start_time, end_ts=end_time, uid=user_email)
+                features = Features(uid=user_email, dataset=data)
+                df = pd.DataFrame(features.extract())
+                df_features = df[df['User id'] == user_email]
 
-        features = StressModel.feature_df_with_state['features'].values
+                # preprocessing and saving the result
+                df_preprocessed = sm.preprocessing(df_features)
+                with open('data_result/' + str(user_email) + "_features.p", 'wb') as file:
+                    pickle.dump(df_preprocessed, file)
 
-        y_pred = initModel.predict(new_row_for_test[features])
+                # normalizing
+                norm_df = sm.normalizing("default", df_preprocessed, None)
 
-        new_row['Sterss_label'] = y_pred
+                # init model
+                sm.initModel(norm_df)
+            else:
+                # TODO: 1. retrieve the data from the gRPC server (Done)
+                # get all user data from gRPC server between start_ts and end_ts
+                data = grpc_load_user_data(start_ts=start_time, end_ts=end_time, uid=user_email)
 
-        # TODO: 6. save current features prediction as label to DB (Soyoung)
-        # insert a new pre-processed feature entry in DB with predicted label
+                # TODO: 2. extract features from retrieved data (Done)
+                with open('data_result/' + str(user_email) + "_features.p", 'rb') as file:
+                    step1_preprocessed = pickle.load(file)
+                features = Features(uid=user_email, dataset=data)
+                df = pd.DataFrame(features.extract())
+                df_features = df[df['User id'] == user_email]
+                new_row = df_features.iloc[10, :]
+                new_row_df = pd.DataFrame(new_row).transpose()
+                # TODO: 3. pre-process and normalize the extracted features (Soyoung)
+                new_row_preprocessed = sm.preprocessing(new_row_df)
+                norm_df = sm.normalizing("new", step1_preprocessed, new_row_preprocessed)
+                # TODO: 4. init StressModel here (Soyoung)
+                # get test dasta
+                new_row_for_test = norm_df[(norm_df['Day'] == day_num) & (norm_df['EMA order'] == ema_order)]
 
-        # DATA- , Model UPDATE
-        update_df = pd.concat([step1_preprocessed.reset_index(drop=True), new_row_preprocessed.reset_index(drop=True)])
+                ## get trained model
+                with open('model_result/' + str(user_email) + "_model.p", 'rb') as file:
+                    initModel = pickle.load(file)
 
-        with open('data_result/' + str(user_email) + "_features.p", 'wb') as file:
-            pickle.dump(update_df, file)
+                # TODO: 5. make prediction using current features with that model (Soyoung)
 
-        # TODO: 7. save prediction in DB and return it to gRPC server (John)
-        # Send the prediction with "STRESS_PREDICTION" data source and "day_num ema_order prediction_value" value
-        user_all_labels = list(set(step1_preprocessed['Stress_label']))
-        model_results = list(sm.getSHAP(user_all_labels, y_pred, new_row_for_test,
-                                        initModel))  # saves results on ModelResult table in DB
-        # TODO: construct a message from model results and return it to gRPC server
+                features = StressModel.feature_df_with_state['features'].values
 
-        # TODO: 8. check user self report and update the DB of pre-processed features with reported stress label if if there is self report from user
-        # check 'SELF_STRESS_REPORT' data source for user and run retrain if needed and retrain
-        # region Retrain the models with prev self reports
-        sr_day_num = 0
-        sr_ema_order = 0
-        sr_value = -1  # self report value
-        if data['SELF_STRESS_REPORT'][-1][
-            1]:  # data['SELF_STRESS_REPORT'][-1][1] takes the value of the latest SELF_STRESS_REPORT data source
-            sr_day_num, sr_ema_order, sr_value = [int(i) for i in data['SELF_STRESS_REPORT'][-1][1].split(" ")]
+                y_pred = initModel.predict(new_row_for_test[features])
 
-        model_result_to_update = models.ModelResult.objects.get(uid=user_email, day_num=sr_day_num,
-                                                                ema_order=sr_ema_order, prediction_result=sr_value)
-        # check if this result was not already updated by the user, if it wasn't then update the user tag and re-train the model
-        if model_result_to_update.user_tag == False:
-            sm.update(sr_value)
+                new_row['Sterss_label'] = y_pred
+
+                # TODO: 6. save current features prediction as label to DB (Soyoung)
+                # insert a new pre-processed feature entry in DB with predicted label
+
+                # DATA- , Model UPDATE
+                update_df = pd.concat([step1_preprocessed.reset_index(drop=True), new_row_preprocessed.reset_index(drop=True)])
+
+                with open('data_result/' + str(user_email) + "_features.p", 'wb') as file:
+                    pickle.dump(update_df, file)
+
+                # TODO: 7. save prediction in DB and return it to gRPC server (John)
+                # Send the prediction with "STRESS_PREDICTION" data source and "day_num ema_order prediction_value" value
+                user_all_labels = list(set(step1_preprocessed['Stress_label']))
+                model_results = list(sm.getSHAP(user_all_labels, y_pred, new_row_for_test, initModel))  # saves results on ModelResult table in DB
+                # TODO: construct a message from model results and return it to gRPC server
+
+                # TODO: 8. check user self report and update the DB of pre-processed features with reported stress label if if there is self report from user
+                # check 'SELF_STRESS_REPORT' data source for user and run retrain if needed and retrain
+                # region Retrain the models with prev self reports
+                sr_day_num = 0
+                sr_ema_order = 0
+                sr_value = -1  # self report value
+                if data['SELF_STRESS_REPORT'][-1][1]:  # data['SELF_STRESS_REPORT'][-1][1] takes the value of the latest SELF_STRESS_REPORT data source
+                    sr_day_num, sr_ema_order, sr_value = [int(i) for i in data['SELF_STRESS_REPORT'][-1][1].split(" ")]
+
+                model_result_to_update = models.ModelResult.objects.get(uid=user_email, day_num=sr_day_num, ema_order=sr_ema_order, prediction_result=sr_value)
+                # check if this result was not already updated by the user, if it wasn't then update the user tag and re-train the model
+                if model_result_to_update.user_tag == False:
+                    sm.update(sr_value)
     grpc_close()
 
 
@@ -237,6 +262,7 @@ def grpc_send_user_data(timestamp, value):
     pass
 
 
-def joinTimestampToDayNum(timestamp):
+def joinTimestampToDayNum(joinTimestamp):
     # TODO: write a code to compute the current day number for participant
-    pass
+    nowTime = int(datetime.datetime.now().timestamp()) * 1000
+    return (nowTime - joinTimestamp) / 1000 / 3600 / 24
