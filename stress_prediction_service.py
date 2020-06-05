@@ -32,13 +32,16 @@ from stress_model import StressModel
 #################################################################################################
 
 
-prediction_times = [10, 14, 18, 22]
+prediction_times = [11, 15, 19, 23]
+survey_duration = 14  # in days
+
 run_service = None
 thread = None
 grpc_stub = None
 grpc_channel = None
-
-survey_duration = 14  # in days
+manager_email = 'nnarziev@nsl.inha.ac.kr'
+manager_id = 2
+campaign_id = 1
 
 
 def start():
@@ -73,18 +76,15 @@ def prediction_task(i):
     print("Prediction task for {} is running... ".format(prediction_times[i]))
     grpc_init()
 
-    now_datetime = datetime.datetime.now()
-    end_time = int(now_datetime.replace(hour=prediction_times[i], minute=0, second=0).timestamp()) * 1000
-    if i == 0:
-        start_time = end_time - (4 * 3600 * 1000)  # hard coded 4 hours (difference between prediction times during the day)
-    else:
-        start_time = int(now_datetime.replace(hour=prediction_times[i - 1], minute=0, second=0).timestamp()) * 1000
+    now_time = int(datetime.datetime.now().timestamp()) * 1000
+    from_time = now_time - (4 * 3600 * 1000)  # from 4 hours before now time
 
     users_info = grpc_load_user_emails()
     ema_order = i + 1
+
     for user_email, id_day in users_info.items():
-        user_id = id_day['uid']  # user[1]=user_id
-        day_num = id_day['dayNum']  # user[1]=user_id
+        user_id = id_day['uid']
+        day_num = id_day['dayNum']
         sm = StressModel(uid=user_email, dayNo=day_num, emaNo=ema_order)
 
         # TODO: 0. check users day num if it's more than 14 days, only then extract features for 14 days and init the model
@@ -93,10 +93,8 @@ def prediction_task(i):
             if day_num == 15 and ema_order == 1:
                 # first model init based on 14 days data
 
-                start_time = 0  # from the very beginning of data collection
-                end_time = int(now_datetime.replace(hour=prediction_times[i], minute=0, second=0).timestamp()) * 1000
-
-                data = grpc_load_user_data(start_ts=start_time, end_ts=end_time, uid=user_email)
+                from_time = 0  # from the very beginning of data collection
+                data = grpc_load_user_data(from_ts=from_time, uid=user_email)
                 features = Features(uid=user_email, dataset=data)
                 df = pd.DataFrame(features.extract())
                 df_features = df[df['User id'] == user_email]
@@ -114,7 +112,7 @@ def prediction_task(i):
             else:
                 # TODO: 1. retrieve the data from the gRPC server (Done)
                 # get all user data from gRPC server between start_ts and end_ts
-                data = grpc_load_user_data(start_ts=start_time, end_ts=end_time, uid=user_email)
+                data = grpc_load_user_data(from_ts=from_time, uid=user_email)
 
                 # TODO: 2. extract features from retrieved data (Done)
                 with open('data_result/' + str(user_email) + "_features.p", 'rb') as file:
@@ -171,6 +169,7 @@ def prediction_task(i):
                 # check if this result was not already updated by the user, if it wasn't then update the user tag and re-train the model
                 if model_result_to_update.user_tag == False:
                     sm.update(sr_value)
+
     grpc_close()
 
 
@@ -221,7 +220,7 @@ def grpc_load_user_emails():
     return user_info
 
 
-def grpc_load_user_data(start_ts, end_ts, uid):
+def grpc_load_user_data(from_ts, uid):
     global grpc_stub
     # retrieve campaign details --> data source ids
     request = et_service_pb2.RetrieveCampaignRequestMessage(
@@ -238,21 +237,42 @@ def grpc_load_user_data(start_ts, end_ts, uid):
 
     # retrieve data of each participant
     data = {}
+    data[uid] = {}
     for data_source_name in data_sources:
-        data[data_source_name] = []
-        request = et_service_pb2.RetrieveFilteredDataRecordsRequestMessage(
-            userId=2,
-            email='nnarziev@nsl.inha.ac.kr',
-            targetEmail=uid,
-            targetCampaignId=10,
-            targetDataSourceId=data_sources[data_source_name],
-            fromTimestamp=start_ts,
-            tillTimestamp=end_ts
-        )
-        response = grpc_stub.retrieveFilteredDataRecords(request)
-        if response.doneSuccessfully:
-            for ts, vl in zip(response.timestamp, response.value):
-                data[data_source_name] += [(ts, vl)]
+        data[uid][data_source_name] = []
+        data_available = True
+        while data_available:
+            grpc_req = et_service_pb2.Retrieve100DataRecordsRequestMessage(
+                userId=manager_id,
+                email=manager_email,
+                targetEmail=uid,
+                targetCampaignId=campaign_id,
+                targetDataSourceId=data_sources[data_source_name],
+                fromTimestamp=from_ts
+            )
+            grpc_res = grpc_stub.retrieve100DataRecords(grpc_req)
+            if grpc_res.doneSuccessfully:
+                for timestamp, value in zip(grpc_res.timestamp, grpc_res.value):
+                    from_time = timestamp
+                    data[uid][data_source_name] += [(timestamp, value)]
+            data_available = grpc_res.doneSuccessfully and grpc_res.moreDataAvailable
+        # print(data)
+
+    # for data_source_name in data_sources:
+    #     data[data_source_name] = []
+    #     request = et_service_pb2.RetrieveFilteredDataRecordsRequestMessage(
+    #         userId=2,
+    #         email='nnarziev@nsl.inha.ac.kr',
+    #         targetEmail=uid,
+    #         targetCampaignId=10,
+    #         targetDataSourceId=data_sources[data_source_name],
+    #         fromTimestamp=start_ts,
+    #         tillTimestamp=end_ts
+    #     )
+    #     response = grpc_stub.retrieveFilteredDataRecords(request)
+    #     if response.doneSuccessfully:
+    #         for ts, vl in zip(response.timestamp, response.value):
+    #             data[data_source_name] += [(ts, vl)]
     # print(data)
     return data
 
@@ -265,4 +285,4 @@ def grpc_send_user_data(timestamp, value):
 def joinTimestampToDayNum(joinTimestamp):
     # TODO: write a code to compute the current day number for participant
     nowTime = int(datetime.datetime.now().timestamp()) * 1000
-    return (nowTime - joinTimestamp) / 1000 / 3600 / 24
+    return int((nowTime - joinTimestamp) / 1000 / 3600 / 24)
