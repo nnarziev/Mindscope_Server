@@ -5,7 +5,7 @@ from urllib.request import HTTPError
 from bs4 import BeautifulSoup
 
 
-def in_range(number, start, end):
+def number_in_range(number, start, end):
     if start <= number <= end:
         return True
     else:
@@ -19,7 +19,7 @@ def get_filename_from_data_src(filenames, data_src, username):
 
 
 class Features:
-    NUMBER_OF_EMA = 6
+    EMA_RESPONSE_EXPIRE_TIME = 3600  # in seconds
     LOCATION_HOME = "HOME"
 
     UNLOCK_DURATION = "UNLOCK_DURATION"
@@ -41,9 +41,12 @@ class Features:
 
     pckg_to_cat_map = {}
 
-    def __init__(self, uid, dataset):
+    def __init__(self, uid, dataset, start_ts, end_ts, ema_order):
         self.uid = uid
         self.dataset = dataset
+        self.start_ts = start_ts
+        self.end_ts = end_ts
+        self.ema_order = ema_order
 
     def get_unlock_result(self, dataset, start_time, end_time):
         result = 0
@@ -51,7 +54,7 @@ class Features:
         if data.__len__() > 0:
             for item in data:
                 start, end, duration = item[1].split(" ")
-                if in_range(int(start), start_time, end_time) and in_range(int(end), start_time, end_time):
+                if number_in_range(int(start), start_time, end_time) and number_in_range(int(end), start_time, end_time):
                     result += int(duration)
         return result if result > 0 else "-"
 
@@ -68,7 +71,7 @@ class Features:
         if data.__len__() > 0:
             for item in data:
                 start, end, call_type, duration = item[1].split(" ")
-                if in_range(int(start), start_time, end_time) and in_range(int(end), start_time, end_time):
+                if number_in_range(int(start), start_time, end_time) and number_in_range(int(end), start_time, end_time):
                     result["phone_calls_total_dur"] += int(duration)
                     if call_type == "IN":
                         total_in += 1
@@ -102,7 +105,7 @@ class Features:
         if data.__len__() > 0:
             for item in data:
                 start, end, activity_type, duration = item[1].split(" ")
-                if in_range(int(start), start_time, end_time) and in_range(int(end), start_time, end_time):
+                if number_in_range(int(start), start_time, end_time) and number_in_range(int(end), start_time, end_time):
                     if activity_type == 'STILL':
                         result['still'] += int(duration)
                     elif activity_type == 'WALKING':
@@ -155,7 +158,7 @@ class Features:
         if data.__len__() > 0:
             for item in data:
                 activity_type, timestamp = item[1].split(" ")
-                if in_range(int(timestamp), start_time, end_time):
+                if number_in_range(int(timestamp), start_time, end_time):
                     if activity_type == 'STILL':
                         result['still'] += 1
                     elif activity_type == 'WALKING':
@@ -204,7 +207,7 @@ class Features:
         if data.__len__() > 0:
             for item in data:
                 timestamp, loudness = item[1].split(" ")
-                if in_range(int(timestamp), start_time, end_time):
+                if number_in_range(int(timestamp), start_time, end_time):
                     audio_data.append(float(loudness))
 
         total_samples = audio_data.__len__()
@@ -220,7 +223,7 @@ class Features:
         if data.__len__() > 0:
             for item in data:
                 start, end, distance = item[1].split(" ")
-                if in_range(int(start), start_time, end_time):
+                if number_in_range(int(start), start_time, end_time):
                     result = float(distance)
 
         return result if result > 0.0 else "-"
@@ -231,7 +234,7 @@ class Features:
         if data.__len__() > 0:
             for item in data:
                 start, end, distance = item[1].split(" ")
-                if in_range(int(start), start_time, end_time):
+                if number_in_range(int(start), start_time, end_time):
                     result = float(distance)
 
         return result if result > 0.0 else "-"
@@ -242,7 +245,7 @@ class Features:
         if data.__len__() > 0:
             for item in data:
                 start, end, value = item[1].split(" ")
-                if in_range(int(start), start_time, end_time):
+                if number_in_range(int(start), start_time, end_time):
                     result = float(value)
 
         return result if result > 0.0 else "-"
@@ -253,7 +256,7 @@ class Features:
         if data.__len__() > 0:
             for item in data:
                 start, end, distance = item[1].split(" ")
-                if in_range(int(start), start_time, end_time):
+                if number_in_range(int(start), start_time, end_time):
                     result = float(distance)
 
         return result if result > 0.0 else "-"
@@ -264,7 +267,7 @@ class Features:
         if data.__len__() > 0:
             for item in data:
                 start, end, number = item[1].split(" ")
-                if in_range(int(start), start_time, end_time):
+                if number_in_range(int(start), start_time, end_time):
                     result = float(number)
 
         return result if result > 0.0 else "-"
@@ -275,7 +278,7 @@ class Features:
         if data.__len__() > 0:
             for item in data:
                 enter_time, exit_time, location_id = item[1].split(" ")
-                if in_range(int(enter_time), start_time, end_time) and location_id == location_name:
+                if number_in_range(int(enter_time), start_time, end_time) and location_id == location_name:
                     result += (int(exit_time) - int(enter_time)) / 1000
 
         return result if result > 0 else "-"
@@ -286,12 +289,12 @@ class Features:
         if data_geofence.__len__() > 0:
             for item_geofence in data_geofence:
                 enter_time, exit_time, location_id = item_geofence[1].split(" ")
-                if in_range(int(enter_time), start_time, end_time) and location_id == location_name:
+                if number_in_range(int(enter_time), start_time, end_time) and location_id == location_name:
                     data_unlock = list(dataset_unlock)
                     if data_unlock.__len__() > 0:
                         for item_unlock in data_unlock:
                             start, end, duration = item_unlock[1].split(" ")
-                            if in_range(int(start), int(enter_time), int(exit_time)) and in_range(int(end), int(enter_time), int(exit_time)):
+                            if number_in_range(int(start), int(enter_time), int(exit_time)) and number_in_range(int(end), int(enter_time), int(exit_time)):
                                 result += int(duration)
 
         return result if result > 0 else "-"
@@ -318,7 +321,7 @@ class Features:
             for item in data:
                 start, end, pckg_name = item[1].split(" ")
                 duration = (int(end) - int(start)) / 1000
-                if in_range(int(start), start_time, end_time) and in_range(int(end), start_time, end_time):
+                if number_in_range(int(start), start_time, end_time) and number_in_range(int(end), start_time, end_time):
                     if pckg_name in self.pckg_to_cat_map:
                         category = self.pckg_to_cat_map[pckg_name]
                     else:
@@ -391,7 +394,7 @@ class Features:
                     cl_start, cl_end, cl_duration = data[index][1].split(" ")
                     nl_start, nl_end, nl_duration = data[index + 1][1].split(" ")
 
-                    if in_range(int(cl_start) / 1000, start_time, end_time):
+                    if number_in_range(int(cl_start), start_time, end_time):
                         durations.append((int(nl_start) - int(cl_end)) / 1000)
                 except IndexError as err:
                     a = 1
@@ -412,11 +415,11 @@ class Features:
         if data_calls.__len__() > 0:
             for index in range(0, len(data_calls)):
                 call_start_time, call_end_time, call_type, duration = data_calls[index][1].split(" ")
-                if in_range(int(call_start_time), start_time, end_time) and in_range(int(call_end_time), start_time, end_time):
+                if number_in_range(int(call_start_time), start_time, end_time) and number_in_range(int(call_end_time), start_time, end_time):
                     data_audio = list(dataset_audio)
                     for item in data_audio:
                         timestamp, loudness = item[1].split(" ")
-                        if in_range(int(timestamp), int(call_start_time), int(call_end_time)):
+                        if number_in_range(int(timestamp), int(call_start_time), int(call_end_time)):
                             audio_data.append(float(loudness))
 
                     total_audio_samples = audio_data.__len__()
@@ -458,6 +461,19 @@ class Features:
         finally:
             # print("Pckg: ", App, ";   Category: ", grouped_Category)
             return grouped_Category
+
+    def get_survey_data(self, ema_order, end_time):
+        ema_array = list(self.dataset[self.uid][self.SURVEY_EMA])
+        ema_data = []
+        if ema_array.__len__() > 0:
+            for ema in ema_array:
+                answered_time, order, answer1, answer2, answer3, answer4 = ema[1].split(" ")
+                if order == ema_order and number_in_range(answered_time, end_time, end_time + self.EMA_RESPONSE_EXPIRE_TIME * 1000):
+                    ema_data.append(int(answer1))
+                    ema_data.append(int(answer2))
+                    ema_data.append(int(answer3))
+                    ema_data.append(int(answer4))
+        return ema_data
 
     def extract(self):
         global df
@@ -513,49 +529,48 @@ class Features:
                        'Phonecall audio min.',
                        'Phonecall audio max.',
                        'Phonecall audio mean']
+
             print("Processing features for ", self.uid, ".....")
             datasets = []
 
-            end_time = datetime.datetime.now().timestamp()
-            start_time = end_time - 10800  # 10800sec = 3hours before each EMA
-            unlock_data = self.get_unlock_result(self.dataset[self.UNLOCK_DURATION], start_time, end_time)
-            phonecall_data = self.get_phonecall_result(self.dataset[self.CALLS], start_time, end_time)
-            activities_total_dur = self.get_activities_dur_result(self.dataset[self.ACTIVITY_TRANSITION], start_time, end_time)
-            dif_activities = self.get_num_of_dif_activities_result(self.dataset[self.ACTIVITY_RECOGNITION], start_time, end_time)
-            audio_data = self.get_audio_data_result(self.dataset[self.AUDIO_LOUDNESS], start_time, end_time)
-            total_dist_data = self.get_total_distance_result(self.dataset[self.TOTAL_DIST_COVERED], start_time, end_time)
-            max_dist = self.get_max_dis_result(self.dataset[self.MAX_DIST_FROM_HOME], start_time, end_time)
-            gyration = self.get_radius_of_gyration_result(self.dataset[self.RADIUS_OF_GYRATION], start_time, end_time)
-            max_home = self.get_max_dist_from_home_result(self.dataset[self.MAX_DIST_FROM_HOME], start_time, end_time)
-            num_places = self.get_num_of_places_result(self.dataset[self.NUM_OF_DIF_PLACES], start_time, end_time)
-            time_at = self.get_time_at_location(self.dataset[self.GEOFENCE], start_time, end_time, self.LOCATION_HOME)
+            unlock_data = self.get_unlock_result(self.dataset[self.UNLOCK_DURATION], self.start_ts, self.end_ts)
+            phonecall_data = self.get_phonecall_result(self.dataset[self.CALLS], self.start_ts, self.end_ts)
+            activities_total_dur = self.get_activities_dur_result(self.dataset[self.ACTIVITY_TRANSITION], self.start_ts, self.end_ts)
+            dif_activities = self.get_num_of_dif_activities_result(self.dataset[self.ACTIVITY_RECOGNITION], self.start_ts, self.end_ts)
+            audio_data = self.get_audio_data_result(self.dataset[self.AUDIO_LOUDNESS], self.start_ts, self.end_ts)
+            total_dist_data = self.get_total_distance_result(self.dataset[self.TOTAL_DIST_COVERED], self.start_ts, self.end_ts)
+            max_dist = self.get_max_dis_result(self.dataset[self.MAX_DIST_FROM_HOME], self.start_ts, self.end_ts)
+            gyration = self.get_radius_of_gyration_result(self.dataset[self.RADIUS_OF_GYRATION], self.start_ts, self.end_ts)
+            max_home = self.get_max_dist_from_home_result(self.dataset[self.MAX_DIST_FROM_HOME], self.start_ts, self.end_ts)
+            num_places = self.get_num_of_places_result(self.dataset[self.NUM_OF_DIF_PLACES], self.start_ts, self.end_ts)
+            time_at = self.get_time_at_location(self.dataset[self.GEOFENCE], self.start_ts, self.end_ts, self.LOCATION_HOME)
 
             unlock_at = self.get_unlock_duration_at_location(
                 self.dataset[self.GEOFENCE],
                 self.dataset[self.UNLOCK_DURATION],
-                start_time, end_time, self.LOCATION_HOME)
+                self.start_ts, self.end_ts, self.LOCATION_HOME)
 
             pc_audio_data = self.get_pc_audio_data_result(
                 self.dataset[self.CALLS],
                 self.dataset[self.AUDIO_LOUDNESS],
-                start_time, end_time)
+                self.start_ts, self.end_ts)
 
-            app_usage = self.get_app_category_usage(self.dataset[self.APPLICATION_USAGE], start_time, end_time)
+            app_usage = self.get_app_category_usage(self.dataset[self.APPLICATION_USAGE], self.start_ts, self.end_ts)
 
-            # day_hour_start = 18
-            # day_hour_end = 10
-            # date_start = datetime.datetime.fromtimestamp(int(time) / 1000)
-            # date_start = date_start - datetime.timedelta(days=1)
-            # date_start = date_start.replace(hour=day_hour_start, minute=0, second=0)
-            # date_end = datetime.datetime.fromtimestamp(int(time) / 1000)
-            # date_end = date_end.replace(hour=day_hour_end, minute=0, second=0)
-            # sleep_duration = self.get_sleep_duration(self.dataset[self.uid][self.SCREEN_ON_OFF], date_start.timestamp(), date_end.timestamp())
-            # print("Start: ", date_start.timestamp(), "; End: ", date_end.timestamp(), "; Sleep duration: ", sleep_duration)
+            day_hour_start = 18
+            day_hour_end = 10
+            date_start = datetime.datetime.fromtimestamp(self.end_ts / 1000)
+            date_start = date_start - datetime.timedelta(days=1)
+            date_start = date_start.replace(hour=day_hour_start, minute=0, second=0)
+            date_end = datetime.datetime.fromtimestamp(self.end_ts / 1000)
+            date_end = date_end.replace(hour=day_hour_end, minute=0, second=0)
+            sleep_duration = self.get_sleep_duration(self.dataset[self.uid][self.SCREEN_ON_OFF], date_start.timestamp(), date_end.timestamp())
+
+            survey_answers = self.get_survey_data(self.ema_order, self.ema_order)
 
             data = {'User id': self.uid,
-                    'Stress lvl': answer1 + answer2 + answer3 + answer4,
-                    'Responded time': time,
-                    'EMA order': ema_order,
+                    'Stress lvl': (survey_answers[0] + survey_answers[1] + survey_answers[2] + survey_answers[3]) if survey_answers.__len__() > 0 else "-",
+                    'EMA order': self.ema_order,
                     'Unlock duration': unlock_data,
                     'Phonecall duration': phonecall_data["phone_calls_total_dur"],
                     'Phonecall number': phonecall_data["phone_calls_total_number"],
