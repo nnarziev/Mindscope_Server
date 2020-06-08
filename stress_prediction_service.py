@@ -89,9 +89,9 @@ def prediction_task(i):
                 # first model init based on 14 days data
 
                 from_time = 0  # from the very beginning of data collection
-                data = grpc_handler.grpc_load_user_data(from_ts=from_time, uid=user_email, data_sources=data_sources)
-                features = Features(uid=user_email, dataset=data)
-                df = pd.DataFrame(features.extract())
+                data = grpc_handler.grpc_load_user_data(from_ts=from_time, uid=user_email, data_sources=data_sources, data_src_for_sleep_detection=Features.SCREEN_ON_OFF)
+                features = Features(uid=user_email, dataset=data[user_email])
+                df = pd.DataFrame(features.extract_for_after_survey())
                 df_features = df[df['User id'] == user_email]
 
                 # preprocessing and saving the result
@@ -110,13 +110,13 @@ def prediction_task(i):
             else:
                 # TODO: 1. retrieve the data from the gRPC server (Done)
                 # get all user data from gRPC server between start_ts and end_ts
-                data = grpc_handler.grpc_load_user_data(from_ts=from_time, uid=user_email, data_sources=data_sources)
+                data = grpc_handler.grpc_load_user_data(from_ts=from_time, uid=user_email, data_sources=data_sources, data_src_for_sleep_detection=Features.SCREEN_ON_OFF)
 
                 # TODO: 2. extract features from retrieved data (Done)
                 with open('data_result/' + str(user_email) + "_features.p", 'rb') as file:
                     step1_preprocessed = pickle.load(file)
                 features = Features(uid=user_email, dataset=data)
-                df = pd.DataFrame(features.extract())
+                df = pd.DataFrame(features.extract_regular())
                 df_features = df[df['User id'] == user_email]
                 new_row = df_features.iloc[10, :]
                 new_row_df = pd.DataFrame(new_row).transpose()

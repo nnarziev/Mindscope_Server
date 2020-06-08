@@ -64,12 +64,18 @@ class GrpcHandler:
 
         return data_sources
 
-    def grpc_load_user_data(self, from_ts, uid, data_sources):
+    def grpc_load_user_data(self, from_ts, uid, data_sources, data_src_for_sleep_detection):
         global grpc_stub
         # retrieve data of each participant
         data = {}
         data[uid] = {}
         for data_source_name in data_sources:
+            # from_time for screen on and off must be more amount of data to detect sleep duration
+            if data_source_name == data_src_for_sleep_detection:
+                from_time = from_ts - 48 * 60 * 60 * 1000
+            else:
+                from_time = from_ts
+
             data[uid][data_source_name] = []
             data_available = True
             while data_available:
@@ -79,7 +85,7 @@ class GrpcHandler:
                     targetEmail=uid,
                     targetCampaignId=self.campaign_id,
                     targetDataSourceId=data_sources[data_source_name],
-                    fromTimestamp=from_ts
+                    fromTimestamp=from_time
                 )
                 grpc_res = grpc_stub.retrieve100DataRecords(grpc_req)
                 if grpc_res.doneSuccessfully:
@@ -87,24 +93,6 @@ class GrpcHandler:
                         from_time = timestamp
                         data[uid][data_source_name] += [(timestamp, value)]
                 data_available = grpc_res.doneSuccessfully and grpc_res.moreDataAvailable
-            # print(data)
-
-        # for data_source_name in data_sources:
-        #     data[data_source_name] = []
-        #     request = et_service_pb2.RetrieveFilteredDataRecordsRequestMessage(
-        #         userId=2,
-        #         email='nnarziev@nsl.inha.ac.kr',
-        #         targetEmail=uid,
-        #         targetCampaignId=10,
-        #         targetDataSourceId=data_sources[data_source_name],
-        #         fromTimestamp=start_ts,
-        #         tillTimestamp=end_ts
-        #     )
-        #     response = grpc_stub.retrieveFilteredDataRecords(request)
-        #     if response.doneSuccessfully:
-        #         for ts, vl in zip(response.timestamp, response.value):
-        #             data[data_source_name] += [(ts, vl)]
-        # print(data)
         return data
 
     def grpc_send_user_data(self, user_id, user_email, data_src, timestamp, value):

@@ -41,12 +41,9 @@ class Features:
 
     pckg_to_cat_map = {}
 
-    def __init__(self, uid, dataset, start_ts, end_ts, ema_order):
+    def __init__(self, uid, dataset):
         self.uid = uid
         self.dataset = dataset
-        self.start_ts = start_ts
-        self.end_ts = end_ts
-        self.ema_order = ema_order
 
     def get_unlock_result(self, dataset, start_time, end_time):
         result = 0
@@ -397,8 +394,7 @@ class Features:
                     if number_in_range(int(cl_start), start_time, end_time):
                         durations.append((int(nl_start) - int(cl_end)) / 1000)
                 except IndexError as err:
-                    a = 1
-                    # print("Skip this part: ", err)
+                    print("Skip this part: ", err)
         if durations:
             result = max(durations)
         return result if result > 0 else "-"
@@ -463,7 +459,7 @@ class Features:
             return grouped_Category
 
     def get_survey_data(self, ema_order, end_time):
-        ema_array = list(self.dataset[self.uid][self.SURVEY_EMA])
+        ema_array = list(self.dataset[self.SURVEY_EMA])
         ema_data = []
         if ema_array.__len__() > 0:
             for ema in ema_array:
@@ -475,7 +471,156 @@ class Features:
                     ema_data.append(int(answer4))
         return ema_data
 
-    def extract(self):
+    def extract_regular(self, start_ts, end_ts, ema_order):
+        global df
+        try:
+            columns = ['User id',
+                       'Stress lvl',
+                       'Responded time',
+                       'EMA order',
+                       'Unlock duration',
+                       'Phonecall duration',
+                       'Phonecall number',
+                       'Phonecall ratio',
+                       'Duration STILL',
+                       'Duration WALKING',
+                       'Duration RUNNING',
+                       'Duration BICYCLE',
+                       'Duration VEHICLE',
+                       'Duration ON_FOOT',
+                       'Duration TILTING',
+                       'Duration UNKNOWN',
+                       'Freq. STILL',
+                       'Freq. WALKING',
+                       'Freq. RUNNING',
+                       'Freq. BICYCLE',
+                       'Freq. VEHICLE',
+                       'Freq. ON_FOOT',
+                       'Freq. TILTING',
+                       'Freq. UNKNOWN',
+                       'Audio min.',
+                       'Audio max.',
+                       'Audio mean',
+                       'Total distance',
+                       'Num. of places',
+                       'Max. distance',
+                       'Gyration',
+                       'Max. dist.(HOME)',
+                       'Duration(HOME)',
+                       'Unlock dur.(HOME)',
+                       'Entertainment & Music',
+                       'Utilities',
+                       'Shopping',
+                       'Games & Comics',
+                       'Others',
+                       'Health & Wellness',
+                       'Social & Communication',
+                       'Education',
+                       'Travel',
+                       'Art & Design & Photo',
+                       'News & Magazine',
+                       'Food & Drink',
+                       'Unknown & Background',
+                       'Sleep dur.',
+                       'Phonecall audio min.',
+                       'Phonecall audio max.',
+                       'Phonecall audio mean']
+
+            print("Processing features for ", self.uid, ".....")
+
+            unlock_data = self.get_unlock_result(self.dataset[self.UNLOCK_DURATION], start_ts, end_ts)
+            phonecall_data = self.get_phonecall_result(self.dataset[self.CALLS], start_ts, end_ts)
+            activities_total_dur = self.get_activities_dur_result(self.dataset[self.ACTIVITY_TRANSITION], start_ts, end_ts)
+            dif_activities = self.get_num_of_dif_activities_result(self.dataset[self.ACTIVITY_RECOGNITION], start_ts, end_ts)
+            audio_data = self.get_audio_data_result(self.dataset[self.AUDIO_LOUDNESS], start_ts, end_ts)
+            total_dist_data = self.get_total_distance_result(self.dataset[self.TOTAL_DIST_COVERED], start_ts, end_ts)
+            max_dist = self.get_max_dis_result(self.dataset[self.MAX_DIST_FROM_HOME], start_ts, end_ts)
+            gyration = self.get_radius_of_gyration_result(self.dataset[self.RADIUS_OF_GYRATION], start_ts, end_ts)
+            max_home = self.get_max_dist_from_home_result(self.dataset[self.MAX_DIST_FROM_HOME], start_ts, end_ts)
+            num_places = self.get_num_of_places_result(self.dataset[self.NUM_OF_DIF_PLACES], start_ts, end_ts)
+            time_at = self.get_time_at_location(self.dataset[self.GEOFENCE], start_ts, end_ts, self.LOCATION_HOME)
+
+            unlock_at = self.get_unlock_duration_at_location(
+                self.dataset[self.GEOFENCE],
+                self.dataset[self.UNLOCK_DURATION],
+                start_ts, end_ts, self.LOCATION_HOME)
+
+            pc_audio_data = self.get_pc_audio_data_result(
+                self.dataset[self.CALLS],
+                self.dataset[self.AUDIO_LOUDNESS],
+                start_ts, end_ts)
+
+            app_usage = self.get_app_category_usage(self.dataset[self.APPLICATION_USAGE], start_ts, end_ts)
+
+            day_hour_start = 18
+            day_hour_end = 10
+            date_start = datetime.datetime.fromtimestamp(end_ts / 1000)
+            date_start = date_start - datetime.timedelta(days=1)
+            date_start = date_start.replace(hour=day_hour_start, minute=0, second=0)
+            date_end = datetime.datetime.fromtimestamp(end_ts / 1000)
+            date_end = date_end.replace(hour=day_hour_end, minute=0, second=0)
+            # TODO: fix sleep duration computation here
+            sleep_duration = self.get_sleep_duration(self.dataset[self.SCREEN_ON_OFF], date_start.timestamp(), date_end.timestamp())
+
+            data = {'User id': self.uid,
+                    'Stress lvl': "-",
+                    'EMA order': ema_order,
+                    'Unlock duration': unlock_data,
+                    'Phonecall duration': phonecall_data["phone_calls_total_dur"],
+                    'Phonecall number': phonecall_data["phone_calls_total_number"],
+                    'Phonecall ratio': phonecall_data["phone_calls_ratio_in_out"],
+                    'Duration STILL': activities_total_dur["still"],
+                    'Duration WALKING': activities_total_dur["walking"],
+                    'Duration RUNNING': activities_total_dur["running"],
+                    'Duration BICYCLE': activities_total_dur["on_bicycle"],
+                    'Duration VEHICLE': activities_total_dur["in_vehicle"],
+                    'Duration ON_FOOT': activities_total_dur["on_foot"],
+                    'Duration TILTING': activities_total_dur["tilting"],
+                    'Duration UNKNOWN': activities_total_dur["unknown"],
+                    'Freq. STILL': dif_activities["still"],
+                    'Freq. WALKING': dif_activities["walking"],
+                    'Freq. RUNNING': dif_activities["running"],
+                    'Freq. BICYCLE': dif_activities["on_bicycle"],
+                    'Freq. VEHICLE': dif_activities["in_vehicle"],
+                    'Freq. ON_FOOT': dif_activities["on_foot"],
+                    'Freq. TILTING': dif_activities["tilting"],
+                    'Freq. UNKNOWN': dif_activities["unknown"],
+                    'Audio min.': audio_data['minimum'],
+                    'Audio max.': audio_data['maximum'],
+                    'Audio mean': audio_data['mean'],
+                    'Total distance': total_dist_data,
+                    'Num. of places': num_places,
+                    'Max. distance': max_dist,
+                    'Gyration': gyration,
+                    'Max. dist.(HOME)': max_home,
+                    'Duration(HOME)': time_at,
+                    'Unlock dur.(HOME)': unlock_at,
+                    'Entertainment & Music': app_usage['Entertainment & Music'],
+                    'Utilities': app_usage['Utilities'],
+                    'Shopping': app_usage['Shopping'],
+                    'Games & Comics': app_usage['Games & Comics'],
+                    'Others': app_usage['Others'],
+                    'Health & Wellness': app_usage['Health & Wellness'],
+                    'Social & Communication': app_usage['Social & Communication'],
+                    'Education': app_usage['Education'],
+                    'Travel': app_usage['Travel'],
+                    'Art & Design & Photo': app_usage['Art & Design & Photo'],
+                    'News & Magazine': app_usage['News & Magazine'],
+                    'Food & Drink': app_usage['Food & Drink'],
+                    'Unknown & Background': app_usage['Unknown & Background'],
+                    'Phonecall audio min.': pc_audio_data['minimum'],
+                    'Phonecall audio max.': pc_audio_data['maximum'],
+                    'Phonecall audio mean': pc_audio_data['mean'],
+                    'Sleep dur.': sleep_duration}
+
+            # Finally, save the file here
+            df = pd.DataFrame(data, index=[0])
+            df = df[columns]
+            return df
+        except Exception as e:
+            print("Ex: ", e)
+
+    def extract_for_after_survey(self):
         global df
         try:
             columns = ['User id',
@@ -533,101 +678,106 @@ class Features:
             print("Processing features for ", self.uid, ".....")
             datasets = []
 
-            unlock_data = self.get_unlock_result(self.dataset[self.UNLOCK_DURATION], self.start_ts, self.end_ts)
-            phonecall_data = self.get_phonecall_result(self.dataset[self.CALLS], self.start_ts, self.end_ts)
-            activities_total_dur = self.get_activities_dur_result(self.dataset[self.ACTIVITY_TRANSITION], self.start_ts, self.end_ts)
-            dif_activities = self.get_num_of_dif_activities_result(self.dataset[self.ACTIVITY_RECOGNITION], self.start_ts, self.end_ts)
-            audio_data = self.get_audio_data_result(self.dataset[self.AUDIO_LOUDNESS], self.start_ts, self.end_ts)
-            total_dist_data = self.get_total_distance_result(self.dataset[self.TOTAL_DIST_COVERED], self.start_ts, self.end_ts)
-            max_dist = self.get_max_dis_result(self.dataset[self.MAX_DIST_FROM_HOME], self.start_ts, self.end_ts)
-            gyration = self.get_radius_of_gyration_result(self.dataset[self.RADIUS_OF_GYRATION], self.start_ts, self.end_ts)
-            max_home = self.get_max_dist_from_home_result(self.dataset[self.MAX_DIST_FROM_HOME], self.start_ts, self.end_ts)
-            num_places = self.get_num_of_places_result(self.dataset[self.NUM_OF_DIF_PLACES], self.start_ts, self.end_ts)
-            time_at = self.get_time_at_location(self.dataset[self.GEOFENCE], self.start_ts, self.end_ts, self.LOCATION_HOME)
+            ema_responses = list(self.dataset[self.SURVEY_EMA])
+            if ema_responses.__len__() > 0:
+                for index, ema_res in enumerate(ema_responses):
+                    print(index + 1, "/", ema_responses.__len__())
+                    responded_time, ema_order, a1, a2, a3, a4 = ema_res[1].split(" ")
+                    end_time = int(responded_time)
+                    start_time = end_time - 4 * 3600 * 1000  # get data 4 hours before each ema
+                    if start_time < 0:
+                        continue
 
-            unlock_at = self.get_unlock_duration_at_location(
-                self.dataset[self.GEOFENCE],
-                self.dataset[self.UNLOCK_DURATION],
-                self.start_ts, self.end_ts, self.LOCATION_HOME)
+                    unlock_data = self.get_unlock_result(self.dataset[self.UNLOCK_DURATION], start_time, end_time)
+                    phonecall_data = self.get_phonecall_result(self.dataset[self.CALLS], start_time, end_time)
+                    activities_total_dur = self.get_activities_dur_result(self.dataset[self.ACTIVITY_TRANSITION], start_time, end_time)
+                    dif_activities = self.get_num_of_dif_activities_result(self.dataset[self.ACTIVITY_RECOGNITION], start_time, end_time)
+                    audio_data = self.get_audio_data_result(self.dataset[self.AUDIO_LOUDNESS], start_time, end_time)
+                    total_dist_data = self.get_total_distance_result(self.dataset[self.TOTAL_DIST_COVERED], start_time, end_time)
+                    max_dist = self.get_max_dis_result(self.dataset[self.MAX_DIST_FROM_HOME], start_time, end_time)
+                    gyration = self.get_radius_of_gyration_result(self.dataset[self.RADIUS_OF_GYRATION], start_time, end_time)
+                    max_home = self.get_max_dist_from_home_result(self.dataset[self.MAX_DIST_FROM_HOME], start_time, end_time)
+                    num_places = self.get_num_of_places_result(self.dataset[self.NUM_OF_DIF_PLACES], start_time, end_time)
+                    time_at = self.get_time_at_location(self.dataset[self.GEOFENCE], start_time, end_time, self.LOCATION_HOME)
 
-            pc_audio_data = self.get_pc_audio_data_result(
-                self.dataset[self.CALLS],
-                self.dataset[self.AUDIO_LOUDNESS],
-                self.start_ts, self.end_ts)
+                    unlock_at = self.get_unlock_duration_at_location(
+                        self.dataset[self.GEOFENCE],
+                        self.dataset[self.UNLOCK_DURATION],
+                        start_time, end_time, self.LOCATION_HOME)
 
-            app_usage = self.get_app_category_usage(self.dataset[self.APPLICATION_USAGE], self.start_ts, self.end_ts)
+                    pc_audio_data = self.get_pc_audio_data_result(
+                        self.dataset[self.CALLS],
+                        self.dataset[self.AUDIO_LOUDNESS],
+                        start_time, end_time)
 
-            day_hour_start = 18
-            day_hour_end = 10
-            date_start = datetime.datetime.fromtimestamp(self.end_ts / 1000)
-            date_start = date_start - datetime.timedelta(days=1)
-            date_start = date_start.replace(hour=day_hour_start, minute=0, second=0)
-            date_end = datetime.datetime.fromtimestamp(self.end_ts / 1000)
-            date_end = date_end.replace(hour=day_hour_end, minute=0, second=0)
-            sleep_duration = self.get_sleep_duration(self.dataset[self.uid][self.SCREEN_ON_OFF], date_start.timestamp(), date_end.timestamp())
+                    app_usage = self.get_app_category_usage(self.dataset[self.APPLICATION_USAGE], start_time, end_time)
 
-            survey_answers = self.get_survey_data(self.ema_order, self.ema_order)
+                    day_hour_start = 18
+                    day_hour_end = 10
+                    date_start = datetime.datetime.fromtimestamp(end_time / 1000)
+                    date_start = date_start - datetime.timedelta(days=1)
+                    date_start = date_start.replace(hour=day_hour_start, minute=0, second=0)
+                    date_end = datetime.datetime.fromtimestamp(end_time / 1000)
+                    date_end = date_end.replace(hour=day_hour_end, minute=0, second=0)
+                    sleep_duration = self.get_sleep_duration(self.dataset[self.SCREEN_ON_OFF], date_start.timestamp(), date_end.timestamp())
 
-            data = {'User id': self.uid,
-                    'Stress lvl': (survey_answers[0] + survey_answers[1] + survey_answers[2] + survey_answers[3]) if survey_answers.__len__() > 0 else "-",
-                    'EMA order': self.ema_order,
-                    'Unlock duration': unlock_data,
-                    'Phonecall duration': phonecall_data["phone_calls_total_dur"],
-                    'Phonecall number': phonecall_data["phone_calls_total_number"],
-                    'Phonecall ratio': phonecall_data["phone_calls_ratio_in_out"],
-                    'Duration STILL': activities_total_dur["still"],
-                    'Duration WALKING': activities_total_dur["walking"],
-                    'Duration RUNNING': activities_total_dur["running"],
-                    'Duration BICYCLE': activities_total_dur["on_bicycle"],
-                    'Duration VEHICLE': activities_total_dur["in_vehicle"],
-                    'Duration ON_FOOT': activities_total_dur["on_foot"],
-                    'Duration TILTING': activities_total_dur["tilting"],
-                    'Duration UNKNOWN': activities_total_dur["unknown"],
-                    'Freq. STILL': dif_activities["still"],
-                    'Freq. WALKING': dif_activities["walking"],
-                    'Freq. RUNNING': dif_activities["running"],
-                    'Freq. BICYCLE': dif_activities["on_bicycle"],
-                    'Freq. VEHICLE': dif_activities["in_vehicle"],
-                    'Freq. ON_FOOT': dif_activities["on_foot"],
-                    'Freq. TILTING': dif_activities["tilting"],
-                    'Freq. UNKNOWN': dif_activities["unknown"],
-                    'Audio min.': audio_data['minimum'],
-                    'Audio max.': audio_data['maximum'],
-                    'Audio mean': audio_data['mean'],
-                    'Total distance': total_dist_data,
-                    'Num. of places': num_places,
-                    'Max. distance': max_dist,
-                    'Gyration': gyration,
-                    'Max. dist.(HOME)': max_home,
-                    'Duration(HOME)': time_at,
-                    'Unlock dur.(HOME)': unlock_at,
-                    'Entertainment & Music': app_usage['Entertainment & Music'],
-                    'Utilities': app_usage['Utilities'],
-                    'Shopping': app_usage['Shopping'],
-                    'Games & Comics': app_usage['Games & Comics'],
-                    'Others': app_usage['Others'],
-                    'Health & Wellness': app_usage['Health & Wellness'],
-                    'Social & Communication': app_usage['Social & Communication'],
-                    'Education': app_usage['Education'],
-                    'Travel': app_usage['Travel'],
-                    'Art & Design & Photo': app_usage['Art & Design & Photo'],
-                    'News & Magazine': app_usage['News & Magazine'],
-                    'Food & Drink': app_usage['Food & Drink'],
-                    'Unknown & Background': app_usage['Unknown & Background'],
-                    'Phonecall audio min.': pc_audio_data['minimum'],
-                    'Phonecall audio max.': pc_audio_data['maximum'],
-                    'Phonecall audio mean': pc_audio_data['mean'],
-                    'Sleep dur.': sleep_duration}
+                    data = {'User id': self.uid,
+                            'Stress lvl': int(a1) + int(a2) + int(a3) + int(a4),
+                            'EMA order': ema_order,
+                            'Unlock duration': unlock_data,
+                            'Phonecall duration': phonecall_data["phone_calls_total_dur"],
+                            'Phonecall number': phonecall_data["phone_calls_total_number"],
+                            'Phonecall ratio': phonecall_data["phone_calls_ratio_in_out"],
+                            'Duration STILL': activities_total_dur["still"],
+                            'Duration WALKING': activities_total_dur["walking"],
+                            'Duration RUNNING': activities_total_dur["running"],
+                            'Duration BICYCLE': activities_total_dur["on_bicycle"],
+                            'Duration VEHICLE': activities_total_dur["in_vehicle"],
+                            'Duration ON_FOOT': activities_total_dur["on_foot"],
+                            'Duration TILTING': activities_total_dur["tilting"],
+                            'Duration UNKNOWN': activities_total_dur["unknown"],
+                            'Freq. STILL': dif_activities["still"],
+                            'Freq. WALKING': dif_activities["walking"],
+                            'Freq. RUNNING': dif_activities["running"],
+                            'Freq. BICYCLE': dif_activities["on_bicycle"],
+                            'Freq. VEHICLE': dif_activities["in_vehicle"],
+                            'Freq. ON_FOOT': dif_activities["on_foot"],
+                            'Freq. TILTING': dif_activities["tilting"],
+                            'Freq. UNKNOWN': dif_activities["unknown"],
+                            'Audio min.': audio_data['minimum'],
+                            'Audio max.': audio_data['maximum'],
+                            'Audio mean': audio_data['mean'],
+                            'Total distance': total_dist_data,
+                            'Num. of places': num_places,
+                            'Max. distance': max_dist,
+                            'Gyration': gyration,
+                            'Max. dist.(HOME)': max_home,
+                            'Duration(HOME)': time_at,
+                            'Unlock dur.(HOME)': unlock_at,
+                            'Entertainment & Music': app_usage['Entertainment & Music'],
+                            'Utilities': app_usage['Utilities'],
+                            'Shopping': app_usage['Shopping'],
+                            'Games & Comics': app_usage['Games & Comics'],
+                            'Others': app_usage['Others'],
+                            'Health & Wellness': app_usage['Health & Wellness'],
+                            'Social & Communication': app_usage['Social & Communication'],
+                            'Education': app_usage['Education'],
+                            'Travel': app_usage['Travel'],
+                            'Art & Design & Photo': app_usage['Art & Design & Photo'],
+                            'News & Magazine': app_usage['News & Magazine'],
+                            'Food & Drink': app_usage['Food & Drink'],
+                            'Unknown & Background': app_usage['Unknown & Background'],
+                            'Phonecall audio min.': pc_audio_data['minimum'],
+                            'Phonecall audio max.': pc_audio_data['maximum'],
+                            'Phonecall audio mean': pc_audio_data['mean'],
+                            'Sleep dur.': sleep_duration}
 
-            datasets.append(data)  # dataset of rows
+                    datasets.append(data)  # dataset of rows
+
             # Finally, save the file here
-            # header = True
             for dataset in datasets:
                 df = pd.DataFrame(dataset, index=[0])
                 df = df[columns]
-                # mode = 'w' if header else 'a'
-                # df.to_csv('./features_{0}.csv'.format(self.uid), encoding='utf-8', mode=mode, header=header, index=False)
-                # header = False
             return df
         except Exception as e:
             print("Ex: ", e)
