@@ -33,6 +33,7 @@ survey_duration = 1  # in days
 
 run_service = None
 thread = None
+grpc_handler = None
 manager_email = 'nnarziev@nsl.inha.ac.kr'
 manager_id = 2
 campaign_id = 1
@@ -67,6 +68,7 @@ def service_routine():
 
 
 def prediction_task(i):
+    global grpc_handler
     print("Prediction task for {} is running... ".format(prediction_times[i]))
     grpc_handler = GrpcHandler('165.246.21.202:50051', manager_id, manager_email, campaign_id)
 
@@ -77,6 +79,7 @@ def prediction_task(i):
     ema_order = i + 1
 
     data_sources = grpc_handler.grpc_get_data_sources_info()
+
     for user_email, id_day in users_info.items():
         user_id = id_day['uid']
         day_num = id_day['dayNum']
@@ -86,7 +89,7 @@ def prediction_task(i):
         if day_num > survey_duration:
             # if the first day and the first ema order after 14days
             if day_num == survey_duration + 1 and ema_order == 1:
-                initialModelTraining(user_email, data_sources)
+                initialModelTraining(user_email, data_sources, sm)
             else:
                 # 1. retrieve the data from the gRPC server
                 # get all user data from gRPC server between start_ts and end_ts
@@ -146,37 +149,42 @@ def prediction_task(i):
                 # 8. check user self report and update the DB of pre-processed features with reported stress label if if there is self report from user
                 # check 'SELF_STRESS_REPORT' data source for user and run retrain if needed and retrain
                 # region Retrain the models with prev self reports
-                sr_day_num = 0
-                sr_ema_order = 0
-                sr_value = -1  # self report value
-                if data['SELF_STRESS_REPORT'][-1][1]:  # data['SELF_STRESS_REPORT'][-1][1] takes the value of the latest SELF_STRESS_REPORT data source
-                    sr_day_num, sr_ema_order, sr_value = [int(i) for i in data['SELF_STRESS_REPORT'][-1][1].split(" ")]
+                check_and_handle_self_report(user_email, data, sm)
 
-                model_result_to_update = models.ModelResult.objects.get(uid=user_email, day_num=sr_day_num, ema_order=sr_ema_order, prediction_result=sr_value)
-                # check if this result was not already updated by the user, if it wasn't then update the user tag and re-train the model
-                if model_result_to_update.user_tag == False:
-                    sm.update(sr_value)
 
     grpc_handler.grpc_close()
 
 
-def initialModelTraining(user_email, data_sources):
+def initialModelTraining(user_email, data_sources, stress_model):
     # first model init based on 14 days data
     from_time = 0  # from the very beginning of data collection
     data = grpc_handler.grpc_load_user_data(from_ts=from_time, uid=user_email, data_sources=data_sources,
                                             data_src_for_sleep_detection=Features.SCREEN_ON_OFF)
 
-    features = Features(uid=user_email, dataset=data[user_email])
+    features = Features(uid=user_email, dataset=data)
     df = pd.DataFrame(features.extract_for_after_survey())
 
     # preprocessing and saving the result
-    df_preprocessed = sm.preprocessing(df)
+    df_preprocessed = stress_model.preprocessing(df)
     with open('data_result/' + str(user_email) + "_features.p", 'wb') as file:
         pickle.dump(df_preprocessed, file)
 
     # normalizing
-    norm_df = sm.normalizing("default", df_preprocessed, None)
+    norm_df = stress_model.normalizing("default", df_preprocessed, None)
 
     # init model
-    sm.initModel(norm_df)
+    stress_model.initModel(norm_df)
     # TODO: return prediction message to gRPC for user to see
+
+
+def check_and_handle_self_report(user_email, data, stress_model):
+    sr_day_num = 0
+    sr_ema_order = 0
+    sr_value = -1  # self report value
+    if data['SELF_STRESS_REPORT'][-1][1]:  # data['SELF_STRESS_REPORT'][-1][1] takes the value of the latest SELF_STRESS_REPORT data source
+        sr_day_num, sr_ema_order, sr_value = [int(i) for i in data['SELF_STRESS_REPORT'][-1][1].split(" ")]
+
+    model_result_to_update = models.ModelResult.objects.get(uid=user_email, day_num=sr_day_num, ema_order=sr_ema_order, prediction_result=sr_value)
+    # check if this result was not already updated by the user, if it wasn't then update the user tag and re-train the model
+    if model_result_to_update.user_tag == False:
+        stress_model.update(sr_value)

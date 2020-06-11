@@ -68,7 +68,6 @@ class GrpcHandler:
         global grpc_stub
         # retrieve data of each participant
         data = {}
-        data[uid] = {}
         for data_source_name in data_sources:
             # from_time for screen on and off must be more amount of data to detect sleep duration
             if data_source_name == data_src_for_sleep_detection:
@@ -76,7 +75,7 @@ class GrpcHandler:
             else:
                 from_time = from_ts
 
-            data[uid][data_source_name] = []
+            data[data_source_name] = []
             data_available = True
             while data_available:
                 grpc_req = et_service_pb2.Retrieve100DataRecordsRequestMessage(
@@ -91,7 +90,7 @@ class GrpcHandler:
                 if grpc_res.doneSuccessfully:
                     for timestamp, value in zip(grpc_res.timestamp, grpc_res.value):
                         from_time = timestamp
-                        data[uid][data_source_name] += [(timestamp, value)]
+                        data[data_source_name] += [(timestamp, value)]
                 data_available = grpc_res.doneSuccessfully and grpc_res.moreDataAvailable
         return data
 
