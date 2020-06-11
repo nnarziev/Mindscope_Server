@@ -29,7 +29,7 @@ from grpc_handler import GrpcHandler
 
 
 prediction_times = [11, 15, 19, 23]
-survey_duration = 14  # in days
+survey_duration = 1  # in days
 
 run_service = None
 thread = None
@@ -51,10 +51,10 @@ def stop():
 
 
 def service_routine():
-    job10 = schedule.every().day.at("10:00").do(prediction_task, 0)
-    job14 = schedule.every().day.at("14:00").do(prediction_task, 1)
-    job18 = schedule.every().day.at("18:00").do(prediction_task, 2)
-    job22 = schedule.every().day.at("22:00").do(prediction_task, 3)
+    job10 = schedule.every().day.at("11:00").do(prediction_task, 0)
+    job14 = schedule.every().day.at("15:00").do(prediction_task, 1)
+    job18 = schedule.every().day.at("19:00").do(prediction_task, 2)
+    job22 = schedule.every().day.at("23:00").do(prediction_task, 3)
 
     while run_service:
         schedule.run_pending()
@@ -82,7 +82,7 @@ def prediction_task(i):
         day_num = id_day['dayNum']
         sm = StressModel(uid=user_email, dayNo=day_num, emaNo=ema_order)
 
-        # TODO: 0. check users day num if it's more than 14 days, only then extract features for 14 days and init the model
+        # 0. check users day num if it's more than 14 days, only then extract features for 14 days and init the model
         if day_num > survey_duration:
             # if the first day and the first ema order after 14days
             if day_num == survey_duration + 1 and ema_order == 1:
@@ -95,14 +95,12 @@ def prediction_task(i):
                 # 2. extract features from retrieved data
                 with open('data_result/' + str(user_email) + "_features.p", 'rb') as file:
                     step1_preprocessed = pickle.load(file)
+
                 features = Features(uid=user_email, dataset=data)
                 df = pd.DataFrame(features.extract_regular(start_ts=from_time, end_ts=now_time, ema_order=ema_order))
-                df_features = df[df['User id'] == user_email]
-                new_row = df_features.iloc[10, :]
-                new_row_df = pd.DataFrame(new_row).transpose()
 
                 # 3. pre-process and normalize the extracted features
-                new_row_preprocessed = sm.preprocessing(new_row_df)
+                new_row_preprocessed = sm.preprocessing(df)
                 norm_df = sm.normalizing("new", step1_preprocessed, new_row_preprocessed)
 
                 # 4. init StressModel here
@@ -114,12 +112,11 @@ def prediction_task(i):
                     initModel = pickle.load(file)
 
                 # 5. make prediction using current features with that model
-
                 features = StressModel.feature_df_with_state['features'].values
 
                 y_pred = initModel.predict(new_row_for_test[features])
 
-                new_row['Sterss_label'] = y_pred
+                new_row_preprocessed['Sterss_label'] = y_pred
 
                 # 6. save current features prediction as label to DB
                 # insert a new pre-processed feature entry in DB with predicted label
@@ -171,10 +168,9 @@ def initialModelTraining(user_email, data_sources):
 
     features = Features(uid=user_email, dataset=data[user_email])
     df = pd.DataFrame(features.extract_for_after_survey())
-    df_features = df[df['User id'] == user_email]
 
     # preprocessing and saving the result
-    df_preprocessed = sm.preprocessing(df_features)
+    df_preprocessed = sm.preprocessing(df)
     with open('data_result/' + str(user_email) + "_features.p", 'wb') as file:
         pickle.dump(df_preprocessed, file)
 
