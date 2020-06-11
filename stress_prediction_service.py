@@ -86,44 +86,26 @@ def prediction_task(i):
         if day_num > survey_duration:
             # if the first day and the first ema order after 14days
             if day_num == survey_duration + 1 and ema_order == 1:
-                # first model init based on 14 days data
-
-                from_time = 0  # from the very beginning of data collection
-                data = grpc_handler.grpc_load_user_data(from_ts=from_time, uid=user_email, data_sources=data_sources, data_src_for_sleep_detection=Features.SCREEN_ON_OFF)
-                features = Features(uid=user_email, dataset=data[user_email])
-                df = pd.DataFrame(features.extract_for_after_survey())
-                df_features = df[df['User id'] == user_email]
-
-                # preprocessing and saving the result
-                df_preprocessed = sm.preprocessing(df_features)
-                with open('data_result/' + str(user_email) + "_features.p", 'wb') as file:
-                    pickle.dump(df_preprocessed, file)
-
-                # normalizing
-                norm_df = sm.normalizing("default", df_preprocessed, None)
-
-                # init model
-                sm.initModel(norm_df)
-
-                # TODO: return prediction message to gRPC for user to see
-
+                initialModelTraining(user_email, data_sources)
             else:
-                # TODO: 1. retrieve the data from the gRPC server (Done)
+                # 1. retrieve the data from the gRPC server
                 # get all user data from gRPC server between start_ts and end_ts
                 data = grpc_handler.grpc_load_user_data(from_ts=from_time, uid=user_email, data_sources=data_sources, data_src_for_sleep_detection=Features.SCREEN_ON_OFF)
 
-                # TODO: 2. extract features from retrieved data (Done)
+                # 2. extract features from retrieved data
                 with open('data_result/' + str(user_email) + "_features.p", 'rb') as file:
                     step1_preprocessed = pickle.load(file)
                 features = Features(uid=user_email, dataset=data)
-                df = pd.DataFrame(features.extract_regular())
+                df = pd.DataFrame(features.extract_regular(start_ts=from_time, end_ts=now_time, ema_order=ema_order))
                 df_features = df[df['User id'] == user_email]
                 new_row = df_features.iloc[10, :]
                 new_row_df = pd.DataFrame(new_row).transpose()
-                # TODO: 3. pre-process and normalize the extracted features (Soyoung)
+
+                # 3. pre-process and normalize the extracted features
                 new_row_preprocessed = sm.preprocessing(new_row_df)
                 norm_df = sm.normalizing("new", step1_preprocessed, new_row_preprocessed)
-                # TODO: 4. init StressModel here (Soyoung)
+
+                # 4. init StressModel here
                 # get test data
                 new_row_for_test = norm_df[(norm_df['Day'] == day_num) & (norm_df['EMA order'] == ema_order)]
 
@@ -131,7 +113,7 @@ def prediction_task(i):
                 with open('model_result/' + str(user_email) + "_model.p", 'rb') as file:
                     initModel = pickle.load(file)
 
-                # TODO: 5. make prediction using current features with that model (Soyoung)
+                # 5. make prediction using current features with that model
 
                 features = StressModel.feature_df_with_state['features'].values
 
@@ -139,16 +121,15 @@ def prediction_task(i):
 
                 new_row['Sterss_label'] = y_pred
 
-                # TODO: 6. save current features prediction as label to DB (Soyoung)
+                # 6. save current features prediction as label to DB
                 # insert a new pre-processed feature entry in DB with predicted label
-
                 # DATA- , Model UPDATE
                 update_df = pd.concat([step1_preprocessed.reset_index(drop=True), new_row_preprocessed.reset_index(drop=True)])
 
                 with open('data_result/' + str(user_email) + "_features.p", 'wb') as file:
                     pickle.dump(update_df, file)
 
-                # TODO: 7. save prediction in DB and return it to gRPC server (John)
+                # 7. save prediction in DB and return it to gRPC server
                 # Send the prediction with "STRESS_PREDICTION" data source and "day_num ema_order prediction_value" value
                 user_all_labels = list(set(step1_preprocessed['Stress_label']))
                 model_results = list(sm.getSHAP(user_all_labels, y_pred, new_row_for_test, initModel))  # saves results on ModelResult table in DB
@@ -162,9 +143,10 @@ def prediction_task(i):
                         "accuracy": model_result.accuracy,
                         "feature_ids": model_result.feature_ids
                     }
+                #return prediction message to gRPC for user to see
                 grpc_handler.grpc_send_user_data(user_id, user_email, data_sources['STRESS_PREDICTION'], now_time, result_data)
 
-                # TODO: 8. check user self report and update the DB of pre-processed features with reported stress label if if there is self report from user
+                # 8. check user self report and update the DB of pre-processed features with reported stress label if if there is self report from user
                 # check 'SELF_STRESS_REPORT' data source for user and run retrain if needed and retrain
                 # region Retrain the models with prev self reports
                 sr_day_num = 0
@@ -179,3 +161,26 @@ def prediction_task(i):
                     sm.update(sr_value)
 
     grpc_handler.grpc_close()
+
+
+def initialModelTraining(user_email, data_sources):
+    # first model init based on 14 days data
+    from_time = 0  # from the very beginning of data collection
+    data = grpc_handler.grpc_load_user_data(from_ts=from_time, uid=user_email, data_sources=data_sources,
+                                            data_src_for_sleep_detection=Features.SCREEN_ON_OFF)
+
+    features = Features(uid=user_email, dataset=data[user_email])
+    df = pd.DataFrame(features.extract_for_after_survey())
+    df_features = df[df['User id'] == user_email]
+
+    # preprocessing and saving the result
+    df_preprocessed = sm.preprocessing(df_features)
+    with open('data_result/' + str(user_email) + "_features.p", 'wb') as file:
+        pickle.dump(df_preprocessed, file)
+
+    # normalizing
+    norm_df = sm.normalizing("default", df_preprocessed, None)
+
+    # init model
+    sm.initModel(norm_df)
+    # TODO: return prediction message to gRPC for user to see
