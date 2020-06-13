@@ -141,7 +141,8 @@ def prediction_task(i):
                         "day_num": model_result.day_num,
                         "ema_order": model_result.ema_order,
                         "accuracy": model_result.accuracy,
-                        "feature_ids": model_result.feature_ids
+                        "feature_ids": model_result.feature_ids,
+                        "model_tag": model_result.model_tag
                     }
                 #return prediction message to gRPC for user to see
                 grpc_handler.grpc_send_user_data(user_id, user_email, data_sources['STRESS_PREDICTION'], now_time, result_data)
