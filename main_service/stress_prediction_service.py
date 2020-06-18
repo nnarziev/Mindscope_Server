@@ -1,15 +1,16 @@
 import pickle
 
-from feature_extraction import Features
-from Mindscope_Server import models
+from main_service.grpc_handler import GrpcHandler
+from main_service.models import ModelResult
+from main_service.feature_extraction import Features
+
 import threading
 import schedule
 import time
 import pandas as pd
 import datetime
 
-from stress_model import StressModel
-from grpc_handler import GrpcHandler
+from main_service.stress_model import StressModel
 
 # Notes:
 #################################################################################################
@@ -52,33 +53,41 @@ def stop():
 
 
 def service_routine():
+
     job10 = schedule.every().day.at("11:00").do(prediction_task, 0)
     job14 = schedule.every().day.at("15:00").do(prediction_task, 1)
-    job18 = schedule.every().day.at("19:00").do(prediction_task, 2)
+    job18 = schedule.every().day.at("17:21").do(prediction_task, 2)
     job22 = schedule.every().day.at("23:00").do(prediction_task, 3)
 
     while run_service:
-        schedule.run_pending()
-        time.sleep(1)
+        try:
+            schedule.run_pending()
+            time.sleep(1)
+        except KeyboardInterrupt:
+            stop()
 
     schedule.cancel_job(job=job10)
     schedule.cancel_job(job=job14)
     schedule.cancel_job(job=job18)
     schedule.cancel_job(job=job22)
+    exit(0)
 
 
 def prediction_task(i):
     global grpc_handler
     print("Prediction task for {} is running... ".format(prediction_times[i]))
     grpc_handler = GrpcHandler('165.246.21.202:50051', manager_id, manager_email, campaign_id)
+    print(grpc_handler)
 
     now_time = int(datetime.datetime.now().timestamp()) * 1000
     from_time = now_time - (4 * 3600 * 1000)  # from 4 hours before now time
 
     users_info = grpc_handler.grpc_load_user_emails()
+    print("User info: {}".format(users_info))
     ema_order = i + 1
 
     data_sources = grpc_handler.grpc_get_data_sources_info()
+    print("Data sources: {}".format(data_sources))
 
     for user_email, id_day in users_info.items():
         user_id = id_day['uid']
@@ -185,7 +194,7 @@ def check_and_handle_self_report(user_email, data, stress_model):
     if data['SELF_STRESS_REPORT'][-1][1]:  # data['SELF_STRESS_REPORT'][-1][1] takes the value of the latest SELF_STRESS_REPORT data source
         sr_day_num, sr_ema_order, sr_value = [int(i) for i in data['SELF_STRESS_REPORT'][-1][1].split(" ")]
 
-    model_result_to_update = models.ModelResult.objects.get(uid=user_email, day_num=sr_day_num, ema_order=sr_ema_order, prediction_result=sr_value)
+    model_result_to_update = ModelResult.objects.get(uid=user_email, day_num=sr_day_num, ema_order=sr_ema_order, prediction_result=sr_value)
     # check if this result was not already updated by the user, if it wasn't then update the user tag and re-train the model
     if model_result_to_update.user_tag == False:
         stress_model.update(sr_value)

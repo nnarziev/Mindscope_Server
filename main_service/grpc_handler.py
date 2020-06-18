@@ -1,8 +1,8 @@
 import grpc
 import json
 import datetime
-import et_service_pb2
-import et_service_pb2_grpc
+import libs.et_service_pb2 as et_service_pb2
+import libs.et_service_pb2_grpc as et_service_pb2_grpc
 
 
 class GrpcHandler:
@@ -25,7 +25,8 @@ class GrpcHandler:
             email=self.manager_email,
             campaignId=self.campaign_id
         )
-        response = grpc_stub.retrieveParticipants(request)
+        response = self.stub.retrieveParticipants(request)
+        print("hi")
         if not response.doneSuccessfully:
             return False
         for idx, email in enumerate(response.email):
@@ -40,7 +41,7 @@ class GrpcHandler:
                 targetEmail=email,
                 targetCampaignId=self.campaign_id
             )
-            response = grpc_stub.retrieveParticipantStatistics(request)
+            response = self.stub.retrieveParticipantStatistics(request)
             if not response.doneSuccessfully:
                 return False
 
@@ -55,7 +56,7 @@ class GrpcHandler:
             email=self.manager_email,
             campaignId=self.campaign_id
         )
-        response = grpc_stub.retrieveCampaign(request)
+        response = self.stub.retrieveCampaign(request)
         if not response.doneSuccessfully:
             return False
         data_sources = {}
@@ -65,7 +66,6 @@ class GrpcHandler:
         return data_sources
 
     def grpc_load_user_data(self, from_ts, uid, data_sources, data_src_for_sleep_detection):
-        global grpc_stub
         # retrieve data of each participant
         data = {}
         for data_source_name in data_sources:
@@ -86,7 +86,7 @@ class GrpcHandler:
                     targetDataSourceId=data_sources[data_source_name],
                     fromTimestamp=from_time
                 )
-                grpc_res = grpc_stub.retrieve100DataRecords(grpc_req)
+                grpc_res = self.stub.retrieve100DataRecords(grpc_req)
                 if grpc_res.doneSuccessfully:
                     for timestamp, value in zip(grpc_res.timestamp, grpc_res.value):
                         from_time = timestamp
@@ -95,7 +95,6 @@ class GrpcHandler:
         return data
 
     def grpc_send_user_data(self, user_id, user_email, data_src, timestamp, value):
-        global grpc_stub
         req = et_service_pb2.SubmitDataRecordsRequestMessage(
             userId=user_id,
             email=user_email,
@@ -104,7 +103,7 @@ class GrpcHandler:
             accuracy=1,
             values=value
         )
-        response = grpc_stub.submitDataRecords(req)
+        response = self.stub.submitDataRecords(req)
         print(response)
 
     def joinTimestampToDayNum(self, joinTimestamp):

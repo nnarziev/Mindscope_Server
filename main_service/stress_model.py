@@ -27,7 +27,7 @@ class StressModel:
     CONST_STRESS_LITTLE_HIGH = 1
     CONST_STRESS_HIGH = 2
 
-    feature_df_with_state = pd.read_csv('../../Feature List/feature_with_state.csv')
+    feature_df_with_state = pd.read_csv('assets/feature_with_state.csv')
 
     def __init__(self, uid, dayNo, emaNo):
 

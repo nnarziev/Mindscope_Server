@@ -2,7 +2,6 @@
 """Django's command-line utility for administrative tasks."""
 import os
 import sys
-import stress_prediction_service
 
 
 def main():
@@ -15,10 +14,10 @@ def main():
             "available on your PYTHONPATH environment variable? Did you "
             "forget to activate a virtual environment?"
         ) from exc
-    stress_prediction_service.start()
     execute_from_command_line(sys.argv)
 
 
 if __name__ == '__main__':
     main()
-    stress_prediction_service.stop()
+    import main_service.stress_prediction_service as prediction_service
+    prediction_service.stop()

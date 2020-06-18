@@ -429,7 +429,7 @@ class Features:
 
         return result
 
-    cat_list = pd.read_csv('Cat_group.csv')
+    cat_list = pd.read_csv('assets/Cat_group.csv')
 
     def get_google_category(self, app_package):
         url = "https://play.google.com/store/apps/details?id=" + app_package
