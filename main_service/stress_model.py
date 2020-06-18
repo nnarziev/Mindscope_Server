@@ -10,9 +10,10 @@ from sklearn.model_selection import KFold
 from sklearn.model_selection import cross_validate
 from sklearn.ensemble import RandomForestClassifier
 
-from Mindscope_Server import models
 import shap
 import pandas as pd
+
+from main_service.models import ModelResult
 
 
 class StressModel:
@@ -153,7 +154,7 @@ class StressModel:
         with open('model_result/' + str(self.uid) + "_model.p", 'wb') as file:
             pickle.dump(model, file)
 
-    def getSHAP(self, user_all_label, pred, new_row_norm, initModel):
+    def saveAndGetSHAP(self, user_all_label, pred, new_row_norm, initModel):
 
         model_results = []
 
@@ -184,12 +185,13 @@ class StressModel:
                     else:
                         feature_list.append(str(feature_id) + '-low')
             print(feature_list)
+
             if label == pred:
-                model_result = models.ModelResult.objects.create(uid=self.uid, day_num=self.dayNo, ema_order=self.emaNo,
+                model_result = ModelResult.objects.create(uid=self.uid, day_num=self.dayNo, ema_order=self.emaNo,
                                                                  prediction_result=label, accuracy=shap_accuracy,
                                                                  feature_ids=feature_list, model_tag=True)
             else:
-                model_result = models.ModelResult.objects.create(uid=self.uid, day_num=self.dayNo, ema_order=self.emaNo,
+                model_result = ModelResult.objects.create(uid=self.uid, day_num=self.dayNo, ema_order=self.emaNo,
                                                                  prediction_result=label, accuracy=shap_accuracy,
                                                                  feature_ids=feature_list)
 
@@ -212,7 +214,7 @@ class StressModel:
         StressModel.initModel(self, norm_df)
 
         # update ModelResult Table
-        model_result = models.ModelResult.objects.get(uid=self.uid, day_num=self.dayNo, ema_order=self.emaNo,
+        model_result = ModelResult.objects.get(uid=self.uid, day_num=self.dayNo, ema_order=self.emaNo,
                                                       prediction_result=user_response)
         model_result.user_tag = True
         model_result.save()

@@ -19,5 +19,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-    import main_service.stress_prediction_service as prediction_service
-    prediction_service.stop()

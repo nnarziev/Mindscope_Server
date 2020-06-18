@@ -17,15 +17,17 @@ from main_service.stress_model import StressModel
 # This is the Mindscope Server application
 # It runs a prediction_task() function at every prediction time (prediction_times)
 # Inside prediction task we have following steps for each user in the study:
-# Step0. check users day num if it's more than 14 days, only then extract features for 14 days and init the model
-# Step1: retrieve the users' data from the gRPC server (John) - Done
-# Step2: extract features from retrieved data (John) - Done
-# Step3: pre-process and normalize the extracted features (Soyoung) - Need to integrate
-# Step4: init StressModel by taking pre-processed data from DB and normalizing (Soyoung) - Need to integrate
-# Step5: make prediction using current features with that model (Soyoung) - Need to integrate
-# Step6: save current features prediction as label to DB (John)
-# Step7: return prediction to gRPC server (John)
-# Step8: check user self report and update the DB of pre-processed features with reported stress label if there is self report from user
+# Step1. Check if users day num is more than 14 days, only then extract features and make prediction
+# Step2. Check if the first ema order at 15th day of participation, then make initial model training
+# Step3. Retrieve the last 4 hours data from the gRPC server
+# Step4. Extract features from retrieved data
+# Step5. Pre-process and normalize the extracted features
+# Step6. Get trained stress prediction model
+# Step7. Make prediction using current extracted features
+# Step8. Insert a new pre-processed feature entry together with it's predicted label in DB for further model re-train
+# Step9. Save prediction and important features in DB
+# Step10. Construct a result message and send it to gRPC server with "STRESS_PREDICTION" data source id
+# Step11. Lastly, check if user self reported his stress, then update the DB of pre-processed features with reported stress label
 #################################################################################################
 
 
@@ -53,10 +55,9 @@ def stop():
 
 
 def service_routine():
-
     job10 = schedule.every().day.at("11:00").do(prediction_task, 0)
     job14 = schedule.every().day.at("15:00").do(prediction_task, 1)
-    job18 = schedule.every().day.at("17:21").do(prediction_task, 2)
+    job18 = schedule.every().day.at("17:16").do(prediction_task, 2)
     job22 = schedule.every().day.at("23:00").do(prediction_task, 3)
 
     while run_service:
@@ -94,73 +95,59 @@ def prediction_task(i):
         day_num = id_day['dayNum']
         sm = StressModel(uid=user_email, dayNo=day_num, emaNo=ema_order)
 
-        # 0. check users day num if it's more than 14 days, only then extract features for 14 days and init the model
+        # 1. Check if users day num is more than 14 days, only then extract features and make prediction
         if day_num > survey_duration:
-            # if the first day and the first ema order after 14days
+
+            # 2. Check if the first ema order at 15th day of participation, then make initial model training
             if day_num == survey_duration + 1 and ema_order == 1:
                 initialModelTraining(user_email, data_sources, sm)
-            else:
-                # 1. retrieve the data from the gRPC server
-                # get all user data from gRPC server between start_ts and end_ts
-                data = grpc_handler.grpc_load_user_data(from_ts=from_time, uid=user_email, data_sources=data_sources, data_src_for_sleep_detection=Features.SCREEN_ON_OFF)
 
-                # 2. extract features from retrieved data
-                with open('data_result/' + str(user_email) + "_features.p", 'rb') as file:
-                    step1_preprocessed = pickle.load(file)
+            # 3. Retrieve the last 4 hours data from the gRPC server
+            data = grpc_handler.grpc_load_user_data(from_ts=from_time, uid=user_email, data_sources=data_sources, data_src_for_sleep_detection=Features.SCREEN_ON_OFF)
 
-                features = Features(uid=user_email, dataset=data)
-                df = pd.DataFrame(features.extract_regular(start_ts=from_time, end_ts=now_time, ema_order=ema_order))
+            # 4. Extract features from retrieved data
+            with open('data_result/' + str(user_email) + "_features.p", 'rb') as file:
+                step1_preprocessed = pickle.load(file)
+            features = Features(uid=user_email, dataset=data)
+            df = pd.DataFrame(features.extract_regular(start_ts=from_time, end_ts=now_time, ema_order=ema_order))
 
-                # 3. pre-process and normalize the extracted features
-                new_row_preprocessed = sm.preprocessing(df)
-                norm_df = sm.normalizing("new", step1_preprocessed, new_row_preprocessed)
+            # 5. Pre-process and normalize the extracted features
+            new_row_preprocessed = sm.preprocessing(df)
+            norm_df = sm.normalizing("new", step1_preprocessed, new_row_preprocessed)
+            new_row_for_test = norm_df[(norm_df['Day'] == day_num) & (norm_df['EMA order'] == ema_order)]  # get test data
 
-                # 4. init StressModel here
-                # get test data
-                new_row_for_test = norm_df[(norm_df['Day'] == day_num) & (norm_df['EMA order'] == ema_order)]
+            # 6. Get trained stress prediction model
+            with open('model_result/' + str(user_email) + "_model.p", 'rb') as file:
+                initModel = pickle.load(file)
 
-                ## get trained model
-                with open('model_result/' + str(user_email) + "_model.p", 'rb') as file:
-                    initModel = pickle.load(file)
+            # 7. Make prediction using current extracted features
+            features = StressModel.feature_df_with_state['features'].values
+            y_pred = initModel.predict(new_row_for_test[features])
+            new_row_preprocessed['Sterss_label'] = y_pred
 
-                # 5. make prediction using current features with that model
-                features = StressModel.feature_df_with_state['features'].values
+            # 8. Insert a new pre-processed feature entry together with it's predicted label in DB for further model re-train
+            update_df = pd.concat([step1_preprocessed.reset_index(drop=True), new_row_preprocessed.reset_index(drop=True)])
+            with open('data_result/' + str(user_email) + "_features.p", 'wb') as file:
+                pickle.dump(update_df, file)
 
-                y_pred = initModel.predict(new_row_for_test[features])
+            # 9. Save prediction and important features in DB
+            user_all_labels = list(set(step1_preprocessed['Stress_label']))
+            model_results = list(sm.saveAndGetSHAP(user_all_labels, y_pred, new_row_for_test, initModel))  # saves results on ModelResult table in DB
 
-                new_row_preprocessed['Sterss_label'] = y_pred
+            # 10. Construct a result message and send it to gRPC server with "STRESS_PREDICTION" data source id
+            result_data = {}
+            for model_result in model_results:
+                result_data[model_result.prediction_result] = {
+                    "day_num": model_result.day_num,
+                    "ema_order": model_result.ema_order,
+                    "accuracy": model_result.accuracy,
+                    "feature_ids": model_result.feature_ids,
+                    "model_tag": model_result.model_tag
+                }
+            grpc_handler.grpc_send_user_data(user_id, user_email, data_sources['STRESS_PREDICTION'], now_time, result_data)
 
-                # 6. save current features prediction as label to DB
-                # insert a new pre-processed feature entry in DB with predicted label
-                # DATA- , Model UPDATE
-                update_df = pd.concat([step1_preprocessed.reset_index(drop=True), new_row_preprocessed.reset_index(drop=True)])
-
-                with open('data_result/' + str(user_email) + "_features.p", 'wb') as file:
-                    pickle.dump(update_df, file)
-
-                # 7. save prediction in DB and return it to gRPC server
-                # Send the prediction with "STRESS_PREDICTION" data source and "day_num ema_order prediction_value" value
-                user_all_labels = list(set(step1_preprocessed['Stress_label']))
-                model_results = list(sm.getSHAP(user_all_labels, y_pred, new_row_for_test, initModel))  # saves results on ModelResult table in DB
-
-                # construct a message from model results and return it to gRPC server
-                result_data = {}
-                for model_result in model_results:
-                    result_data[model_result.prediction_result] = {
-                        "day_num": model_result.day_num,
-                        "ema_order": model_result.ema_order,
-                        "accuracy": model_result.accuracy,
-                        "feature_ids": model_result.feature_ids,
-                        "model_tag": model_result.model_tag
-                    }
-                #return prediction message to gRPC for user to see
-                grpc_handler.grpc_send_user_data(user_id, user_email, data_sources['STRESS_PREDICTION'], now_time, result_data)
-
-                # 8. check user self report and update the DB of pre-processed features with reported stress label if if there is self report from user
-                # check 'SELF_STRESS_REPORT' data source for user and run retrain if needed and retrain
-                # region Retrain the models with prev self reports
-                check_and_handle_self_report(user_email, data, sm)
-
+            # 11. Lastly, check if user self reported his stress, then update the DB of pre-processed features with reported stress label
+            check_and_handle_self_report(user_email, data, sm)
 
     grpc_handler.grpc_close()
 
@@ -184,10 +171,10 @@ def initialModelTraining(user_email, data_sources, stress_model):
 
     # init model
     stress_model.initModel(norm_df)
-    # TODO: return prediction message to gRPC for user to see
 
 
 def check_and_handle_self_report(user_email, data, stress_model):
+    # 'SELF_STRESS_REPORT' data source in gRPC server holds self reported stress from users
     sr_day_num = 0
     sr_ema_order = 0
     sr_value = -1  # self report value
