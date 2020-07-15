@@ -181,9 +181,9 @@ class StressModel:
                     feature_id = feature_state_df[feature_state_df['feature'] == feature_name]['feature_id'].values[0]
                     feature_value = new_row_norm[feature_name].values[0]
                     if feature_value >= 0.5:
-                        feature_list.append(str(feature_id) + '-high')
+                        feature_list.append(str(feature_id) + '-high ')
                     else:
-                        feature_list.append(str(feature_id) + '-low')
+                        feature_list.append(str(feature_id) + '-low ')
             print(feature_list)
 
             if label == pred:

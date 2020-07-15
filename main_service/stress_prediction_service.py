@@ -37,8 +37,8 @@ survey_duration = 1  # in days
 run_service = None
 thread = None
 grpc_handler = None
-manager_email = 'nnarziev@nsl.inha.ac.kr'
-manager_id = 2
+manager_email = 'mindscope.nsl@gmail.com'
+manager_id = 21
 campaign_id = 1
 
 
@@ -144,7 +144,7 @@ def prediction_task(i):
                     "feature_ids": model_result.feature_ids,
                     "model_tag": model_result.model_tag
                 }
-            grpc_handler.grpc_send_user_data(user_id, user_email, data_sources['STRESS_PREDICTION'], now_time, result_data)
+            grpc_handler.grpc_send_user_data(user_id, user_email, data_sources['STRESS_PREDICTION'], now_time, str(result_data))
 
             # 11. Lastly, check if user self reported his stress, then update the DB of pre-processed features with reported stress label
             check_and_handle_self_report(user_email, data, sm)

@@ -3,6 +3,7 @@ import datetime
 from urllib.request import urlopen
 from urllib.request import HTTPError
 from bs4 import BeautifulSoup
+import math
 
 
 def number_in_range(number, start, end):
@@ -16,6 +17,19 @@ def get_filename_from_data_src(filenames, data_src, username):
     for filename in filenames:
         if username in filename and data_src in filename:
             return filename
+
+
+def get_distance(lat1, lng1, lat2, lng2):
+    earth_radius = 6371000  # in meters
+    dLat = math.radians(lat2 - lat1)
+    dLng = math.radians(lng2 - lng1)
+    a = math.sin(dLat / 2) * math.sin(dLat / 2) + \
+        math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * \
+        math.sin(dLng / 2) * math.sin(dLng / 2)
+
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    dist = float(earth_radius * c)
+    return dist
 
 
 class Features:
@@ -33,6 +47,7 @@ class Features:
     MAX_DIST_FROM_HOME = "MAX_DIST_FROM_HOME"
     NUM_OF_DIF_PLACES = "NUM_OF_DIF_PLACES"
     GEOFENCE = "GEOFENCE"
+    LOCATION_GPS = "LOCATION_GPS"
     SCREEN_ON_OFF = "SCREEN_ON_OFF"
     APPLICATION_USAGE = "APPLICATION_USAGE"
     SURVEY_EMA = "SURVEY_EMA"
@@ -399,6 +414,94 @@ class Features:
             result = max(durations)
         return result if result > 0 else "-"
 
+    def get_location_coordinates(self, dataset, location):
+        result = {
+            "lat": -1,
+            "lng": -1,
+        }
+
+        data = list(dataset)
+        if data.__len__() > 0:
+            for item in reversed(data):
+                timestamp, location_id, lat, lng = item[1].split(" ")
+                if location_id == location:
+                    result["lat"] = lat
+                    result["lng"] = lng
+                    break
+
+        return result
+
+    def get_gps_location_data(filename, dataset, location_coordinates, start_time, end_time):
+        result = {
+            "total_distance": -1,
+            "max_dist_from_home": -1,
+            "max_dist_two_location": -1,
+            "gyration": -1,
+            "number_of_places": -1
+        }
+        locations = []
+        centroid = {
+            "lat": 0,
+            "lng": 0
+        }
+        total_time_in_locations = 0
+        sum_gyration = 0
+        sum_std = 0
+        lat_data = []
+        lng_data = []
+        data = list(dataset)
+        if data.__len__() > 0:
+            result['number_of_places'] = data.__len__()
+            for index, item in enumerate(data):
+                time1, lat1, lng1, speed1, accuracy1, altitude1 = data[index][1].split(" ")
+                time2, lat2, lng2, speed2, accuracy2, altitude2 = data[index + 1][1].split(" ")
+                if number_in_range(int(time1), start_time, end_time) and number_in_range(int(time2), start_time, end_time):
+                    # distance between current location and next one
+                    lat_data.append(float(lat1))
+                    lng_data.append(float(lng1))
+                    distance = get_distance(float(lat1), float(lng1), float(lat2), float(lng2))
+                    result['total_distance'] += distance  # total distance calculated
+                    if distance > result['max_dist_two_location']:
+                        result['max_dist_two_location'] = distance  # max dist between two locations calculated
+
+                    # distance between home location and current location
+                    if not location_coordinates["lat"] == -1:  # enough to check only lat
+                        distance_from_home = get_distance(location_coordinates["lat"], location_coordinates["lng"], float(lat1), float(lng1))
+                        if distance_from_home > result['max_dist_from_home']:
+                            result['max_dist_from_home'] = distance_from_home  # max dist from home calculated
+                    else:
+                        result['max_dist_from_home'] = '-'  # max dist from home is unknown if lat or lng of location is -1
+
+                    centroid["lat"] += float(lat1)
+                    centroid["lng"] += float(lng1)
+                    total_time_in_locations += int((int(time2) - int(time1)) / 1000)
+                    locations.append({"time": int(time1), "lat": float(lat1), "lng": float(lng1)})
+
+            centroid["lat"] = centroid["lat"] / (locations.__len__() - 1)
+            centroid["lng"] = centroid["lng"] / (locations.__len__() - 1)
+
+            avg_displacement = result['total_distance'] / locations.__len__() - 1
+
+            for i in range(0, locations.__len__() - 1):
+                distance_to_centroid = get_distance(locations[i]['lat'], locations[i]['lng'], centroid['lat'],
+                                                    centroid['lng'])
+                sum_gyration += int((locations[i + 1]['time'] - locations[i]['time']) / 1000) * math.pow(
+                    distance_to_centroid, 2)
+
+                distance_std = get_distance(locations[i]['lat'], locations[i]['lng'], locations[i + 1]['lat'],
+                                            locations[i + 1]['lng'], )
+                sum_std += math.pow(distance_std - avg_displacement, 2)
+
+            result['gyration'] = float(math.sqrt(sum_gyration / total_time_in_locations))
+        else:
+            result = {
+                "total_distance": '-',
+                "max_dist_two_location": '-',
+                "gyration": '-',
+                "max_dist_from_home": '-',
+            }
+        return result
+
     # audio features during phone calls
     def get_pc_audio_data_result(self, dataset_calls, dataset_audio, start_time, end_time):
         result = {
@@ -533,12 +636,10 @@ class Features:
             activities_total_dur = self.get_activities_dur_result(self.dataset[self.ACTIVITY_TRANSITION], start_ts, end_ts)
             dif_activities = self.get_num_of_dif_activities_result(self.dataset[self.ACTIVITY_RECOGNITION], start_ts, end_ts)
             audio_data = self.get_audio_data_result(self.dataset[self.AUDIO_LOUDNESS], start_ts, end_ts)
-            total_dist_data = self.get_total_distance_result(self.dataset[self.TOTAL_DIST_COVERED], start_ts, end_ts)
-            max_dist = self.get_max_dis_result(self.dataset[self.MAX_DIST_FROM_HOME], start_ts, end_ts)
-            gyration = self.get_radius_of_gyration_result(self.dataset[self.RADIUS_OF_GYRATION], start_ts, end_ts)
-            max_home = self.get_max_dist_from_home_result(self.dataset[self.MAX_DIST_FROM_HOME], start_ts, end_ts)
-            num_places = self.get_num_of_places_result(self.dataset[self.NUM_OF_DIF_PLACES], start_ts, end_ts)
             time_at = self.get_time_at_location(self.dataset[self.GEOFENCE], start_ts, end_ts, self.LOCATION_HOME)
+            gps_data = self.get_gps_location_data(self.dataset[self.LOCATION_GPS],
+                                                  self.get_location_coordinates(self.dataset[self.LOCATION_GPS], self.LOCATION_HOME),
+                                                  start_ts, end_ts)
 
             unlock_at = self.get_unlock_duration_at_location(
                 self.dataset[self.GEOFENCE],
@@ -588,11 +689,11 @@ class Features:
                     'Audio min.': audio_data['minimum'],
                     'Audio max.': audio_data['maximum'],
                     'Audio mean': audio_data['mean'],
-                    'Total distance': total_dist_data,
-                    'Num. of places': num_places,
-                    'Max. distance': max_dist,
-                    'Gyration': gyration,
-                    'Max. dist.(HOME)': max_home,
+                    'Total distance': gps_data['total_distance'],
+                    'Num. of places': gps_data['number_of_places'],
+                    'Max. distance': gps_data['max_dist_two_location'],
+                    'Gyration': gps_data['gyration'],
+                    'Max. dist.(HOME)': gps_data['max_dist_from_home'],
                     'Duration(HOME)': time_at,
                     'Unlock dur.(HOME)': unlock_at,
                     'Entertainment & Music': app_usage['Entertainment & Music'],
@@ -693,12 +794,10 @@ class Features:
                     activities_total_dur = self.get_activities_dur_result(self.dataset[self.ACTIVITY_TRANSITION], start_time, end_time)
                     dif_activities = self.get_num_of_dif_activities_result(self.dataset[self.ACTIVITY_RECOGNITION], start_time, end_time)
                     audio_data = self.get_audio_data_result(self.dataset[self.AUDIO_LOUDNESS], start_time, end_time)
-                    total_dist_data = self.get_total_distance_result(self.dataset[self.TOTAL_DIST_COVERED], start_time, end_time)
-                    max_dist = self.get_max_dis_result(self.dataset[self.MAX_DIST_FROM_HOME], start_time, end_time)
-                    gyration = self.get_radius_of_gyration_result(self.dataset[self.RADIUS_OF_GYRATION], start_time, end_time)
-                    max_home = self.get_max_dist_from_home_result(self.dataset[self.MAX_DIST_FROM_HOME], start_time, end_time)
-                    num_places = self.get_num_of_places_result(self.dataset[self.NUM_OF_DIF_PLACES], start_time, end_time)
                     time_at = self.get_time_at_location(self.dataset[self.GEOFENCE], start_time, end_time, self.LOCATION_HOME)
+                    gps_data = self.get_gps_location_data(self.dataset[self.LOCATION_GPS],
+                                                          self.get_location_coordinates(self.dataset[self.LOCATION_GPS], self.LOCATION_HOME),
+                                                          start_time, end_time)
 
                     unlock_at = self.get_unlock_duration_at_location(
                         self.dataset[self.GEOFENCE],
@@ -747,11 +846,11 @@ class Features:
                             'Audio min.': audio_data['minimum'],
                             'Audio max.': audio_data['maximum'],
                             'Audio mean': audio_data['mean'],
-                            'Total distance': total_dist_data,
-                            'Num. of places': num_places,
-                            'Max. distance': max_dist,
-                            'Gyration': gyration,
-                            'Max. dist.(HOME)': max_home,
+                            'Total distance': gps_data['total_distance'],
+                            'Num. of places': gps_data['number_of_places'],
+                            'Max. distance': gps_data['max_dist_two_location'],
+                            'Gyration': gps_data['gyration'],
+                            'Max. dist.(HOME)': gps_data['max_dist_from_home'],
                             'Duration(HOME)': time_at,
                             'Unlock dur.(HOME)': unlock_at,
                             'Entertainment & Music': app_usage['Entertainment & Music'],
