@@ -55,10 +55,10 @@ def stop():
 
 
 def service_routine():
-    job10 = schedule.every().day.at("11:00").do(prediction_task, 0)
-    job14 = schedule.every().day.at("15:00").do(prediction_task, 1)
-    job18 = schedule.every().day.at("17:16").do(prediction_task, 2)
-    job22 = schedule.every().day.at("23:00").do(prediction_task, 3)
+    job10 = schedule.every().day.at("10:45").do(prediction_task, 0)
+    job14 = schedule.every().day.at("14:45").do(prediction_task, 1)
+    job18 = schedule.every().day.at("18:45").do(prediction_task, 2)
+    job22 = schedule.every().day.at("22:45").do(prediction_task, 3)
 
     while run_service:
         try:

@@ -453,8 +453,8 @@ class Features:
         if data.__len__() > 0:
             result['number_of_places'] = data.__len__()
             for index, item in enumerate(data):
-                time1, lat1, lng1, speed1, accuracy1, altitude1 = data[index][1].split(" ")
-                time2, lat2, lng2, speed2, accuracy2, altitude2 = data[index + 1][1].split(" ")
+                time1, lat1, lng1 = data[index][1].split(" ")
+                time2, lat2, lng2 = data[index + 1][1].split(" ")
                 if number_in_range(int(time1), start_time, end_time) and number_in_range(int(time2), start_time, end_time):
                     # distance between current location and next one
                     lat_data.append(float(lat1))
