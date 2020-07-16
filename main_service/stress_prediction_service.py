@@ -39,7 +39,7 @@ thread = None
 grpc_handler = None
 manager_email = 'mindscope.nsl@gmail.com'
 manager_id = 21
-campaign_id = 1
+campaign_id = 13
 
 
 def start():
@@ -137,7 +137,7 @@ def prediction_task(i):
             # 10. Construct a result message and send it to gRPC server with "STRESS_PREDICTION" data source id
             result_data = {}
             for model_result in model_results:
-                result_data[model_result.prediction_result] = {
+                result_data[str(model_result.prediction_result)] = {
                     "day_num": model_result.day_num,
                     "ema_order": model_result.ema_order,
                     "accuracy": model_result.accuracy,

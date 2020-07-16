@@ -176,7 +176,10 @@ class StressModel:
             shap_accuracy = expected_value[index]
             shap_list = shap_values[index]
 
-            for s_value, feature_name in zip(shap_list[0], features):
+            shap_dict = dict(zip(features, shap_list[0]))
+            shap_dict_sorted = sorted(shap_dict.items(), key=(lambda x: x[1]), reverse=True)
+
+            for feature_name, s_value in shap_dict_sorted:
                 if s_value > 0:
                     feature_id = feature_state_df[feature_state_df['feature'] == feature_name]['feature_id'].values[0]
                     feature_value = new_row_norm[feature_name].values[0]

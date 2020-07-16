@@ -4,8 +4,8 @@ from libs import et_service_pb2_grpc, et_service_pb2
 
 channel = grpc.insecure_channel('165.246.21.202:50051')
 stub = et_service_pb2_grpc.ETServiceStub(channel)
-manager_email = 'mindscope.nsl@gmail.com'
-manager_id = 21
+manager_email = 'hrgoh@nsl.inha.ac.kr'
+manager_id = 23
 campaign_id = 13
 
 values = []
@@ -50,8 +50,8 @@ values.append({"1": {'feature_ids': '1-low 2-low 3-high 5-high 8-low 2-high 12-h
 
 for index, value in enumerate(values):
     req = et_service_pb2.SubmitDataRecordsRequestMessage(
-        userId=1,
-        email="nslabinha@gmail.com"
+        userId=manager_id,
+        email=manager_email
     )
     req.dataSource.extend([56])
     req.timestamp.extend([times[index]])
