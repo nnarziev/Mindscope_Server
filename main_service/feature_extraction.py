@@ -51,6 +51,7 @@ class Features:
     SCREEN_ON_OFF = "SCREEN_ON_OFF"
     APPLICATION_USAGE = "APPLICATION_USAGE"
     SURVEY_EMA = "SURVEY_EMA"
+    LOCATIONS_MANUAL = "LOCATIONS_MANUAL"
 
     APP_PCKG_TOCATEGORY_MAP_FILENAME = "package_to_category_map.csv"
 
@@ -453,8 +454,16 @@ class Features:
         if data.__len__() > 0:
             result['number_of_places'] = data.__len__()
             for index, item in enumerate(data):
-                time1, lat1, lng1 = data[index][1].split(" ")
-                time2, lat2, lng2 = data[index + 1][1].split(" ")
+                values_current = data[index][1].split(" ")
+                values_next = data[index + 1][1].split(" ")
+                time1 = values_current[0]
+                lat1 = values_current[1]
+                lng1 = values_current[2]
+
+                time2 = values_next[0]
+                lat2 = values_next[1]
+                lng2 = values_next[2]
+
                 if number_in_range(int(time1), start_time, end_time) and number_in_range(int(time2), start_time, end_time):
                     # distance between current location and next one
                     lat_data.append(float(lat1))
@@ -637,9 +646,8 @@ class Features:
             dif_activities = self.get_num_of_dif_activities_result(self.dataset[self.ACTIVITY_RECOGNITION], start_ts, end_ts)
             audio_data = self.get_audio_data_result(self.dataset[self.AUDIO_LOUDNESS], start_ts, end_ts)
             time_at = self.get_time_at_location(self.dataset[self.GEOFENCE], start_ts, end_ts, self.LOCATION_HOME)
-            gps_data = self.get_gps_location_data(self.dataset[self.LOCATION_GPS],
-                                                  self.get_location_coordinates(self.dataset[self.LOCATION_GPS], self.LOCATION_HOME),
-                                                  start_ts, end_ts)
+            coordinates = self.get_location_coordinates(self.dataset[self.LOCATIONS_MANUAL], self.LOCATION_HOME)
+            gps_data = self.get_gps_location_data(self.dataset[self.LOCATION_GPS], coordinates, start_ts, end_ts)
 
             unlock_at = self.get_unlock_duration_at_location(
                 self.dataset[self.GEOFENCE],
@@ -783,7 +791,13 @@ class Features:
             if ema_responses.__len__() > 0:
                 for index, ema_res in enumerate(ema_responses):
                     print(index + 1, "/", ema_responses.__len__())
-                    responded_time, ema_order, a1, a2, a3, a4 = ema_res[1].split(" ")
+                    values = ema_res[1].split(" ")
+                    responded_time = values[0]
+                    ema_order = values[1]
+                    ans1 = values[2]
+                    ans2 = values[3]
+                    ans3 = values[4]
+                    ans4 = values[5]
                     end_time = int(responded_time)
                     start_time = end_time - 4 * 3600 * 1000  # get data 4 hours before each ema
                     if start_time < 0:
@@ -795,9 +809,8 @@ class Features:
                     dif_activities = self.get_num_of_dif_activities_result(self.dataset[self.ACTIVITY_RECOGNITION], start_time, end_time)
                     audio_data = self.get_audio_data_result(self.dataset[self.AUDIO_LOUDNESS], start_time, end_time)
                     time_at = self.get_time_at_location(self.dataset[self.GEOFENCE], start_time, end_time, self.LOCATION_HOME)
-                    gps_data = self.get_gps_location_data(self.dataset[self.LOCATION_GPS],
-                                                          self.get_location_coordinates(self.dataset[self.LOCATION_GPS], self.LOCATION_HOME),
-                                                          start_time, end_time)
+                    coordinates = self.get_location_coordinates(self.dataset[self.LOCATIONS_MANUAL], self.LOCATION_HOME)
+                    gps_data = self.get_gps_location_data(self.dataset[self.LOCATION_GPS], coordinates, start_time, end_time)
 
                     unlock_at = self.get_unlock_duration_at_location(
                         self.dataset[self.GEOFENCE],
@@ -821,7 +834,7 @@ class Features:
                     sleep_duration = self.get_sleep_duration(self.dataset[self.SCREEN_ON_OFF], date_start.timestamp(), date_end.timestamp())
 
                     data = {'User id': self.uid,
-                            'Stress lvl': int(a1) + int(a2) + int(a3) + int(a4),
+                            'Stress lvl': int(ans1) + int(ans2) + int(ans3) + int(ans4),
                             'EMA order': ema_order,
                             'Unlock duration': unlock_data,
                             'Phonecall duration': phonecall_data["phone_calls_total_dur"],
