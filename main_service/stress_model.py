@@ -16,6 +16,17 @@ import pandas as pd
 from main_service.models import ModelResult
 
 
+def mapLabel(score):
+    if score <= StressModel.stress_lv0_max:
+        return StressModel.CONST_STRESS_LOW
+
+    elif (score > StressModel.stress_lv0_max) and (score < StressModel.stress_lv1_max):
+        return StressModel.CONST_STRESS_LITTLE_HIGH
+
+    elif (score >= StressModel.stress_lv1_max):
+        return StressModel.CONST_STRESS_HIGH
+
+
 class StressModel:
     # variable for setting label
 
@@ -60,16 +71,6 @@ class StressModel:
 
     #############################################################################################
 
-    def mapLabel(self, score):
-        if score <= StressModel.stress_lv0_max:
-            return StressModel.CONST_STRESS_LOW
-
-        elif (score > StressModel.stress_lv0_max) and (score < StressModel.stress_lv1_max):
-            return StressModel.CONST_STRESS_LITTLE_HIGH
-
-        elif (score >= StressModel.stress_lv1_max):
-            return StressModel.CONST_STRESS_HIGH
-
     def preprocessing(self, df):
         """
          - 1. del NAN or replace to zero
@@ -90,7 +91,7 @@ class StressModel:
                 df[col] = pd.to_numeric(df[col])
             df = df.fillna(0)
 
-        df['Stress_label'] = df['Stress lvl'].apply(lambda score: StressModel.mapLabel(score))
+        df['Stress_label'] = df['Stress lvl'].apply(lambda score: mapLabel(score))
 
         return df
 
@@ -101,23 +102,26 @@ class StressModel:
         userinfo = ['User id', 'Day', 'EMA order', 'Stress lvl', 'Stress_label']
 
         feature_scaled = pd.DataFrame()
-        scaler = MinMaxScaler()
+        try:
+            scaler = MinMaxScaler()
 
-        feature_df = preprocessed_df[StressModel.feature_df_with_state['features'].values]
+            feature_df = preprocessed_df[StressModel.feature_df_with_state['features'].values]
 
-        if norm_type == "default":
-            # feature list
-            feature_scaled = pd.DataFrame(scaler.fit_transform(feature_df), columns=feature_df.columns)
+            if norm_type == "default":
+                # feature list
+                feature_scaled = pd.DataFrame(scaler.fit_transform(feature_df), columns=feature_df.columns)
 
-        elif norm_type == "new":
+            elif norm_type == "new":
 
-            feature_df = pd.concat([feature_df.reset_index(drop=True), new_row_preprocessed[
-                StressModel.feature_df_with_state['features'].values].reset_index(drop=True)])
+                feature_df = pd.concat([feature_df.reset_index(drop=True), new_row_preprocessed[
+                    StressModel.feature_df_with_state['features'].values].reset_index(drop=True)])
 
-            feature_scaled = pd.DataFrame(scaler.fit_transform(feature_df), columns=feature_df.columns)
+                feature_scaled = pd.DataFrame(scaler.fit_transform(feature_df), columns=feature_df.columns)
 
-        feature_scaled = pd.concat(
-            [preprocessed_df[userinfo].reset_index(drop=True), feature_scaled.reset_index(drop=True)], axis=1)
+            feature_scaled = pd.concat(
+                [preprocessed_df[userinfo].reset_index(drop=True), feature_scaled.reset_index(drop=True)], axis=1)
+        except Exception as e:
+            print(e)
 
         return feature_scaled
 
@@ -191,12 +195,12 @@ class StressModel:
 
             if label == pred:
                 model_result = ModelResult.objects.create(uid=self.uid, day_num=self.dayNo, ema_order=self.emaNo,
-                                                                 prediction_result=label, accuracy=shap_accuracy,
-                                                                 feature_ids=feature_list, model_tag=True)
+                                                          prediction_result=label, accuracy=shap_accuracy,
+                                                          feature_ids=feature_list, model_tag=True)
             else:
                 model_result = ModelResult.objects.create(uid=self.uid, day_num=self.dayNo, ema_order=self.emaNo,
-                                                                 prediction_result=label, accuracy=shap_accuracy,
-                                                                 feature_ids=feature_list)
+                                                          prediction_result=label, accuracy=shap_accuracy,
+                                                          feature_ids=feature_list)
 
             model_results.append(model_result)
 
@@ -218,6 +222,6 @@ class StressModel:
 
         # update ModelResult Table
         model_result = ModelResult.objects.get(uid=self.uid, day_num=self.dayNo, ema_order=self.emaNo,
-                                                      prediction_result=user_response)
+                                               prediction_result=user_response)
         model_result.user_tag = True
         model_result.save()

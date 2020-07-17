@@ -32,7 +32,7 @@ from main_service.stress_model import StressModel
 
 
 prediction_times = [11, 15, 19, 23]
-survey_duration = 1  # in days
+survey_duration = 0  # in days
 
 run_service = None
 thread = None
@@ -59,7 +59,7 @@ def service_routine():
     job10 = schedule.every().day.at("10:43").do(prediction_task, 0)
     job14 = schedule.every().day.at("14:45").do(prediction_task, 1)
     job18 = schedule.every().day.at("18:45").do(prediction_task, 2)
-    job22 = schedule.every().day.at("02:27:35").do(prediction_task, 3)
+    job22 = schedule.every().day.at("03:11").do(prediction_task, 3)
 
     while run_service:
         try:
@@ -93,7 +93,7 @@ def prediction_task(i):
 
     for user_email, id_day in users_info.items():
         # TODO: temporarily check for one user
-        if user_email == 'hrgoh@nsl.inha.ac.kr':
+        if user_email == 'nnarziev@gmail.com':
             user_id = id_day['uid']
             day_num = id_day['dayNum']
             sm = StressModel(uid=user_email, dayNo=day_num, emaNo=ema_order)
@@ -102,6 +102,7 @@ def prediction_task(i):
             if day_num > survey_duration:
 
                 # 2. Check if the first ema order at 15th day of participation, then make initial model training
+                # TODO: uncomment the following after test
                 # if day_num == survey_duration + 1 and ema_order == 1:
                 initialModelTraining(user_email, data_sources, sm)
 

@@ -402,7 +402,7 @@ class Features:
         durations = []
         data = list(dataset)
         if data.__len__() > 0:
-            for index in range(0, len(data)):
+            for index in range(0, len(data) - 1):
                 try:
                     cl_start, cl_end, cl_duration = data[index][1].split(" ")
                     nl_start, nl_end, nl_duration = data[index + 1][1].split(" ")
@@ -426,8 +426,8 @@ class Features:
             for item in reversed(data):
                 timestamp, location_id, lat, lng = item[1].split(" ")
                 if location_id == location:
-                    result["lat"] = lat
-                    result["lng"] = lng
+                    result["lat"] = float(lat)
+                    result["lng"] = float(lng)
                     break
 
         return result
@@ -452,8 +452,7 @@ class Features:
         lng_data = []
         data = list(dataset)
         if data.__len__() > 0:
-            result['number_of_places'] = data.__len__()
-            for index, item in enumerate(data):
+            for index in range(0, len(data) - 1):
                 values_current = data[index][1].split(" ")
                 values_next = data[index + 1][1].split(" ")
                 time1 = values_current[0]
@@ -486,28 +485,38 @@ class Features:
                     total_time_in_locations += int((int(time2) - int(time1)) / 1000)
                     locations.append({"time": int(time1), "lat": float(lat1), "lng": float(lng1)})
 
-            centroid["lat"] = centroid["lat"] / (locations.__len__() - 1)
-            centroid["lng"] = centroid["lng"] / (locations.__len__() - 1)
+            result['number_of_places'] = locations.__len__()
+            if locations.__len__() > 0:
+                centroid["lat"] = centroid["lat"] / locations.__len__()
+                centroid["lng"] = centroid["lng"] / locations.__len__()
 
-            avg_displacement = result['total_distance'] / locations.__len__() - 1
+                avg_displacement = result['total_distance'] / locations.__len__()
 
-            for i in range(0, locations.__len__() - 1):
-                distance_to_centroid = get_distance(locations[i]['lat'], locations[i]['lng'], centroid['lat'],
-                                                    centroid['lng'])
-                sum_gyration += int((locations[i + 1]['time'] - locations[i]['time']) / 1000) * math.pow(
-                    distance_to_centroid, 2)
+                for i in range(0, locations.__len__() - 1):
+                    distance_to_centroid = get_distance(locations[i]['lat'], locations[i]['lng'], centroid['lat'],
+                                                        centroid['lng'])
 
-                distance_std = get_distance(locations[i]['lat'], locations[i]['lng'], locations[i + 1]['lat'],
-                                            locations[i + 1]['lng'], )
-                sum_std += math.pow(distance_std - avg_displacement, 2)
+                    sum_gyration += int((locations[i + 1]['time'] - locations[i]['time']) / 1000) * math.pow(
+                        distance_to_centroid, 2)
 
-            result['gyration'] = float(math.sqrt(sum_gyration / total_time_in_locations))
+                    distance_std = get_distance(locations[i]['lat'], locations[i]['lng'], locations[i + 1]['lat'],
+                                                locations[i + 1]['lng'], )
+                    sum_std += math.pow(distance_std - avg_displacement, 2)
+
+                result['gyration'] = float(math.sqrt(sum_gyration / total_time_in_locations))
+            else:
+                result['total_distance'] = '-'
+                result['max_dist_two_location'] = '-'
+                result['gyration'] = '-'
+                result['max_dist_from_home'] = '-'
+
         else:
             result = {
                 "total_distance": '-',
                 "max_dist_two_location": '-',
                 "gyration": '-',
                 "max_dist_from_home": '-',
+                "number_of_places": 0
             }
         return result
 
@@ -520,10 +529,12 @@ class Features:
         }
         audio_data = []
         data_calls = list(dataset_calls)
+        call_cnt = 0
         if data_calls.__len__() > 0:
             for index in range(0, len(data_calls)):
                 call_start_time, call_end_time, call_type, duration = data_calls[index][1].split(" ")
                 if number_in_range(int(call_start_time), start_time, end_time) and number_in_range(int(call_end_time), start_time, end_time):
+                    call_cnt += 1
                     data_audio = list(dataset_audio)
                     for item in data_audio:
                         timestamp, loudness = item[1].split(" ")
@@ -534,6 +545,14 @@ class Features:
                     result['minimum'] = min(audio_data) if total_audio_samples > 0 else "-"
                     result['maximum'] = max(audio_data) if total_audio_samples > 0 else "-"
                     result['mean'] = sum(audio_data) / total_audio_samples if total_audio_samples > 0 else "-"
+
+                # if no calls in start_time and end_time range then no features exist for this time
+                if call_cnt == 0:
+                    result['minimum'] = "-"
+                    result['maximum'] = "-"
+                    result['mean'] = "-"
+
+
         else:
             result['minimum'] = "-"
             result['maximum'] = "-"
@@ -588,7 +607,6 @@ class Features:
         try:
             columns = ['User id',
                        'Stress lvl',
-                       'Responded time',
                        'EMA order',
                        'Unlock duration',
                        'Phonecall duration',
@@ -734,7 +752,6 @@ class Features:
         try:
             columns = ['User id',
                        'Stress lvl',
-                       'Responded time',
                        'EMA order',
                        'Unlock duration',
                        'Phonecall duration',
