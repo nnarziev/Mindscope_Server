@@ -56,10 +56,10 @@ def stop():
 
 
 def service_routine():
-    job10 = schedule.every().day.at("10:43").do(prediction_task, 0)
+    job10 = schedule.every().day.at("10:45").do(prediction_task, 0)
     job14 = schedule.every().day.at("14:45").do(prediction_task, 1)
     job18 = schedule.every().day.at("18:45").do(prediction_task, 2)
-    job22 = schedule.every().day.at("13:25").do(prediction_task, 3)
+    job22 = schedule.every().day.at("18:04").do(prediction_task, 3)
 
     while run_service:
         try:
@@ -91,11 +91,11 @@ def prediction_task(i):
     data_sources = grpc_handler.grpc_get_data_sources_info()
     print("Data sources: {}".format(data_sources))
 
-    for user_email, id_day in users_info.items():
+    for user_email, id_jointime in users_info.items():
         # TODO: temporarily check for one user
         if user_email == 'nnarziev@gmail.com':
-            user_id = id_day['uid']
-            day_num = id_day['dayNum']
+            user_id = id_jointime['uid']
+            day_num = joinTimestampToDayNum(id_jointime['joinedTime'])
             sm = StressModel(uid=user_email, dayNo=day_num, emaNo=ema_order)
 
             # 1. Check if users day num is more than 14 days, only then extract features and make prediction
@@ -104,7 +104,7 @@ def prediction_task(i):
                 # 2. Check if the first ema order at 15th day of participation, then make initial model training
                 # TODO: uncomment the following after test
                 # if day_num == survey_duration + 1 and ema_order == 1:
-                initialModelTraining(user_email, data_sources, sm)
+                initialModelTraining(user_email, id_jointime['joinedTime'], data_sources, sm)
 
                 # 3. Retrieve the last 4 hours data from the gRPC server
                 data = grpc_handler.grpc_load_user_data(from_ts=from_time, uid=user_email, data_sources=data_sources, data_src_for_sleep_detection=Features.SCREEN_ON_OFF)
@@ -112,7 +112,7 @@ def prediction_task(i):
                 # 4. Extract features from retrieved data
                 with open('data_result/' + str(user_email) + "_features.p", 'rb') as file:
                     step1_preprocessed = pickle.load(file)
-                features = Features(uid=user_email, dataset=data)
+                features = Features(uid=user_email, dataset=data, joinTimestamp=id_jointime['joinedTime'])
                 df = pd.DataFrame(features.extract_regular(start_ts=from_time, end_ts=now_time, ema_order=ema_order))
 
                 # 5. Pre-process and normalize the extracted features
@@ -156,22 +156,25 @@ def prediction_task(i):
     grpc_handler.grpc_close()
 
 
-def initialModelTraining(user_email, data_sources, stress_model):
+def initialModelTraining(user_email, joined_timestamp, data_sources, stress_model):
     # first model init based on 14 days data
     from_time = 0  # from the very beginning of data collection
     data = grpc_handler.grpc_load_user_data(from_ts=from_time, uid=user_email, data_sources=data_sources,
                                             data_src_for_sleep_detection=Features.SCREEN_ON_OFF)
 
-    features = Features(uid=user_email, dataset=data)
+    features = Features(uid=user_email, dataset=data, joinTimestamp=joined_timestamp)
     df = pd.DataFrame(features.extract_for_after_survey())
+    print(df.T)
 
     # preprocessing and saving the result
     df_preprocessed = stress_model.preprocessing(df)
+    print(df_preprocessed.T)
     with open('./data_result/' + str(user_email) + "_features.p", 'wb') as file:
         pickle.dump(df_preprocessed, file)
 
     # normalizing
     norm_df = stress_model.normalizing("default", df_preprocessed, None)
+    print(norm_df.T)
 
     # init model
     stress_model.initModel(norm_df)
@@ -189,3 +192,8 @@ def check_and_handle_self_report(user_email, data, stress_model):
     # check if this result was not already updated by the user, if it wasn't then update the user tag and re-train the model
     if model_result_to_update.user_tag == False:
         stress_model.update(sr_value)
+
+
+def joinTimestampToDayNum(joinTimestamp):
+    nowTime = int(datetime.datetime.now().timestamp()) * 1000
+    return int((nowTime - joinTimestamp) / 1000 / 3600 / 24)

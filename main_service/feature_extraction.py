@@ -32,6 +32,10 @@ def get_distance(lat1, lng1, lat2, lng2):
     return dist
 
 
+def timestampToDayNum(timestamp, joinTimestamp):
+    return int((timestamp - joinTimestamp) / 1000 / 3600 / 24)
+
+
 class Features:
     EMA_RESPONSE_EXPIRE_TIME = 3600  # in seconds
     LOCATION_HOME = "HOME"
@@ -57,9 +61,10 @@ class Features:
 
     pckg_to_cat_map = {}
 
-    def __init__(self, uid, dataset):
+    def __init__(self, uid, dataset, joinTimestamp):
         self.uid = uid
         self.dataset = dataset
+        self.joinTimestamp = joinTimestamp
 
     def get_unlock_result(self, dataset, start_time, end_time):
         result = 0
@@ -608,6 +613,7 @@ class Features:
             columns = ['User id',
                        'Stress lvl',
                        'EMA order',
+                       'Day',
                        'Unlock duration',
                        'Phonecall duration',
                        'Phonecall number',
@@ -692,6 +698,7 @@ class Features:
             data = {'User id': self.uid,
                     'Stress lvl': "-",
                     'EMA order': ema_order,
+                    'Day': timestampToDayNum(int(end_ts), self.joinTimestamp),
                     'Unlock duration': unlock_data,
                     'Phonecall duration': phonecall_data["phone_calls_total_dur"],
                     'Phonecall number': phonecall_data["phone_calls_total_number"],
@@ -748,11 +755,12 @@ class Features:
             print("Ex: ", e)
 
     def extract_for_after_survey(self):
-        global df
+        df = pd.DataFrame()
         try:
             columns = ['User id',
                        'Stress lvl',
                        'EMA order',
+                       'Day',
                        'Unlock duration',
                        'Phonecall duration',
                        'Phonecall number',
@@ -853,6 +861,7 @@ class Features:
                     data = {'User id': self.uid,
                             'Stress lvl': int(ans1) + int(ans2) + int(ans3) + int(ans4),
                             'EMA order': ema_order,
+                            'Day': timestampToDayNum(int(responded_time), self.joinTimestamp),
                             'Unlock duration': unlock_data,
                             'Phonecall duration': phonecall_data["phone_calls_total_dur"],
                             'Phonecall number': phonecall_data["phone_calls_total_number"],
@@ -905,8 +914,8 @@ class Features:
 
             # Finally, save the file here
             for dataset in datasets:
-                df = pd.DataFrame(dataset, index=[0])
-                df = df[columns]
+                df = df.append(pd.DataFrame(dataset, index=[0]))
+            df = df[columns]
             return df
         except Exception as e:
             print("Ex: ", e)

@@ -26,7 +26,6 @@ class GrpcHandler:
             campaignId=self.campaign_id
         )
         response = self.stub.retrieveParticipants(request)
-        print("hi")
         if not response.doneSuccessfully:
             return False
         for idx, email in enumerate(response.email):
@@ -45,7 +44,7 @@ class GrpcHandler:
             if not response.doneSuccessfully:
                 return False
 
-            user_info[email]['dayNum'] = self.joinTimestampToDayNum(response.campaignJoinTimestamp)
+            user_info[email]['joinedTime'] = response.campaignJoinTimestamp
 
         return user_info
 
@@ -106,7 +105,3 @@ class GrpcHandler:
 
         response = self.stub.submitDataRecords(req)
         print(response)
-
-    def joinTimestampToDayNum(self, joinTimestamp):
-        nowTime = int(datetime.datetime.now().timestamp()) * 1000
-        return int((nowTime - joinTimestamp) / 1000 / 3600 / 24)

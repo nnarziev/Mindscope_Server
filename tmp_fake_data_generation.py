@@ -4,8 +4,8 @@ from libs import et_service_pb2_grpc, et_service_pb2
 
 channel = grpc.insecure_channel('165.246.21.202:50051')
 stub = et_service_pb2_grpc.ETServiceStub(channel)
-manager_email = 'hrgoh@nsl.inha.ac.kr'
-manager_id = 23
+user_email = 'nnarziev@gmail.com'
+user_id = 3
 campaign_id = 13
 
 # values = []
@@ -49,41 +49,21 @@ campaign_id = 13
 #                "3": {'feature_ids': '1-low 2-high 3-low 5-high 6-low 7-high 11-high 21-low', 'model_tag': False, 'accuracy': 20, 'day_num': 3, 'ema_order': 4}})
 
 times = [
-    1594692000000,
-    1594706400000,
-    1594720800000,
-    1594735200000,
-    1594778400000,
-    1594792800000,
-    1594807200000,
-    1594821600000,
-    1594864800000,
-    1594879200000,
-    1594893600000,
-    1594908000000,
-    1594994400000
+    1594980263000,
+    1594994423000,
+    1595052030000
 ]
 
 values = [
-    "1594692000000 1 3 3 4 4 3",
-    "1594706400000 2 2 3 4 2 3",
-    "1594720800000 3 0 0 0 0 2",
-    "1594735200000 4 5 5 5 5 2",
-    "1594778400000 1 1 1 3 1 1",
-    "1594792800000 2 5 2 2 2 1",
-    "1594807200000 3 4 4 2 4 1",
-    "1594821600000 4 3 3 2 1 1",
-    "1594864800000 1 4 4 4 2 2",
-    "1594879200000 2 5 3 4 4 1",
-    "1594893600000 3 5 5 5 2 1",
-    "1594908000000 4 2 2 3 4 1",
-    "1594994400000 4 1 1 4 4 3"
+    "1594980263000 3 3 3 4 4 3",
+    "1594994423000 4 2 3 4 2 3",
+    "1595052030000 2 1 2 3 4 1"
 ]
 
 for index, value in enumerate(values):
     req = et_service_pb2.SubmitDataRecordsRequestMessage(
-        userId=manager_id,
-        email=manager_email
+        userId=user_id,
+        email=user_email
     )
     req.dataSource.extend([13])
     req.timestamp.extend([times[index]])
@@ -93,6 +73,6 @@ for index, value in enumerate(values):
 
     print(res)
     if res.doneSuccessfully:
-        print('S')
+        print('Success')
     else:
         print('failed to submit')

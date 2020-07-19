@@ -130,32 +130,35 @@ class StressModel:
         """
         print(".........initModel")
 
-        print("===================Class Count :", Counter(norm_df['Stress_label']))
-        # *** 만약 훈련 데이터에 0,1,2 라벨 중 하나가 없다면? 하나의 라벨만 존재한다면?
+        try:
+            print("===================Class Count :", Counter(norm_df['Stress_label']))
+            # *** 만약 훈련 데이터에 0,1,2 라벨 중 하나가 없다면? 하나의 라벨만 존재한다면?
 
-        X = norm_df[StressModel.feature_df_with_state['features'].values]
-        Y = norm_df['Stress_label'].values
+            X = norm_df[StressModel.feature_df_with_state['features'].values]
+            Y = norm_df['Stress_label'].values
 
-        X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.20, random_state=42)
+            X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.20, random_state=42)
 
-        model = RandomForestClassifier(n_estimators=100, oob_score=True, random_state=100)
+            model = RandomForestClassifier(n_estimators=100, oob_score=True, random_state=100)
 
-        kfold = KFold(n_splits=10)
-        scoring = {'accuracy': 'accuracy',
-                   'f1_micro': 'f1_micro',
-                   'f1_macro': 'f1_macro'}
+            kfold = KFold(n_splits=10)
+            scoring = {'accuracy': 'accuracy',
+                       'f1_micro': 'f1_micro',
+                       'f1_macro': 'f1_macro'}
 
-        cv_results = cross_validate(model, X_train, Y_train, cv=kfold, scoring=scoring)
-        model_result = {'accuracy': cv_results['test_accuracy'].mean(),
-                        'f1_micro': cv_results['test_f1_micro'].mean(),
-                        'f1_macro': cv_results['test_f1_macro'].mean()}
+            cv_results = cross_validate(model, X_train, Y_train, cv=kfold, scoring=scoring)
+            model_result = {'accuracy': cv_results['test_accuracy'].mean(),
+                            'f1_micro': cv_results['test_f1_micro'].mean(),
+                            'f1_macro': cv_results['test_f1_macro'].mean()}
 
-        print("===================Model Result : ", model_result)
+            print("===================Model Result : ", model_result)
 
-        model.fit(X_train, Y_train)
-        ## Model SAVE Path--> where?
-        with open('model_result/' + str(self.uid) + "_model.p", 'wb') as file:
-            pickle.dump(model, file)
+            model.fit(X_train, Y_train)
+            ## Model SAVE Path--> where?
+            with open('model_result/' + str(self.uid) + "_model.p", 'wb') as file:
+                pickle.dump(model, file)
+        except Exception as e:
+            print(e)
 
     def saveAndGetSHAP(self, user_all_label, pred, new_row_norm, initModel):
 
