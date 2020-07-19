@@ -693,7 +693,7 @@ class Features:
             date_end = datetime.datetime.fromtimestamp(end_ts / 1000)
             date_end = date_end.replace(hour=day_hour_end, minute=0, second=0)
             # TODO: fix sleep duration computation here
-            sleep_duration = self.get_sleep_duration(self.dataset[self.SCREEN_ON_OFF], date_start.timestamp(), date_end.timestamp())
+            sleep_duration = self.get_sleep_duration(self.dataset[self.SCREEN_ON_OFF], date_start.timestamp() * 1000, date_end.timestamp() * 1000)
 
             data = {'User id': self.uid,
                     'Stress lvl': "-",
@@ -856,7 +856,7 @@ class Features:
                     date_start = date_start.replace(hour=day_hour_start, minute=0, second=0)
                     date_end = datetime.datetime.fromtimestamp(end_time / 1000)
                     date_end = date_end.replace(hour=day_hour_end, minute=0, second=0)
-                    sleep_duration = self.get_sleep_duration(self.dataset[self.SCREEN_ON_OFF], date_start.timestamp(), date_end.timestamp())
+                    sleep_duration = self.get_sleep_duration(self.dataset[self.SCREEN_ON_OFF], date_start.timestamp() * 1000, date_end.timestamp() * 1000)
 
                     data = {'User id': self.uid,
                             'Stress lvl': int(ans1) + int(ans2) + int(ans3) + int(ans4),

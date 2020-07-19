@@ -59,7 +59,7 @@ def service_routine():
     job10 = schedule.every().day.at("10:45").do(prediction_task, 0)
     job14 = schedule.every().day.at("14:45").do(prediction_task, 1)
     job18 = schedule.every().day.at("18:45").do(prediction_task, 2)
-    job22 = schedule.every().day.at("18:04").do(prediction_task, 3)
+    job22 = schedule.every().day.at("22:05:15").do(prediction_task, 3)
 
     while run_service:
         try:
