@@ -59,7 +59,7 @@ def service_routine():
     job10 = schedule.every().day.at("10:43").do(prediction_task, 0)
     job14 = schedule.every().day.at("14:45").do(prediction_task, 1)
     job18 = schedule.every().day.at("18:45").do(prediction_task, 2)
-    job22 = schedule.every().day.at("03:11").do(prediction_task, 3)
+    job22 = schedule.every().day.at("13:25").do(prediction_task, 3)
 
     while run_service:
         try:
@@ -167,7 +167,7 @@ def initialModelTraining(user_email, data_sources, stress_model):
 
     # preprocessing and saving the result
     df_preprocessed = stress_model.preprocessing(df)
-    with open('data_result/' + str(user_email) + "_features.p", 'wb') as file:
+    with open('./data_result/' + str(user_email) + "_features.p", 'wb') as file:
         pickle.dump(df_preprocessed, file)
 
     # normalizing

@@ -80,18 +80,17 @@ class StressModel:
         print(".....preprocessing")
 
         delNan_col = ['Audio min.', 'Audio max.', 'Audio mean', 'Sleep dur.']
-
-        for col in df.columns:
-            if (col != 'Stress lvl') & (col != 'User id') & (col != 'Day'):
-                if col in delNan_col:
-                    df = df[df[col] != '-']
-                else:
+        try:
+            for col in df.columns:
+                if (col != 'Stress lvl') & (col != 'User id') & (col != 'Day'):
                     df[col] = df[col].replace('-', 0)
 
-                df[col] = pd.to_numeric(df[col])
-            df = df.fillna(0)
+                    df[col] = pd.to_numeric(df[col])
+                df = df.fillna(0)
 
-        df['Stress_label'] = df['Stress lvl'].apply(lambda score: mapLabel(score))
+            df['Stress_label'] = df['Stress lvl'].apply(lambda score: mapLabel(score))
+        except Exception as e:
+            print(e)
 
         return df
 
