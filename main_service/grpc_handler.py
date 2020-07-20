@@ -1,8 +1,8 @@
 import grpc
 import json
-import datetime
 import libs.et_service_pb2 as et_service_pb2
 import libs.et_service_pb2_grpc as et_service_pb2_grpc
+from main_service.feature_extraction import Features
 
 
 class GrpcHandler:
@@ -71,6 +71,8 @@ class GrpcHandler:
             # from_time for screen on and off must be more amount of data to detect sleep duration
             if data_source_name == data_src_for_sleep_detection:
                 from_time = from_ts - 48 * 60 * 60 * 1000
+            elif data_source_name == Features.LOCATIONS_MANUAL:  # take all data for LOCATIONS_MANUAL
+                from_time = 0
             else:
                 from_time = from_ts
 

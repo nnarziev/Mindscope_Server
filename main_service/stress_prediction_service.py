@@ -12,13 +12,13 @@ import datetime
 
 from main_service.stress_model import StressModel
 
-# Notes:
+# region Notes:
 #################################################################################################
 # This is the Mindscope Server application
 # It runs a prediction_task() function at every prediction time (prediction_times)
 # Inside prediction task we have following steps for each user in the study:
-# Step1. Check if users day num is more than 14 days, only then extract features and make prediction
-# Step2. Check if the first ema order at 15th day of participation, then make initial model training
+# Step1. Check if the users day num is 14 and job is for initial model training
+# Step2. Check if users day num is more than 14 days, only then extract features and make prediction
 # Step3. Retrieve the last 4 hours data from the gRPC server
 # Step4. Extract features from retrieved data
 # Step5. Pre-process and normalize the extracted features
@@ -29,19 +29,33 @@ from main_service.stress_model import StressModel
 # Step10. Construct a result message and send it to gRPC server with "STRESS_PREDICTION" data source id
 # Step11. Lastly, check if user self reported his stress, then update the DB of pre-processed features with reported stress label
 #################################################################################################
+# endregion
 
 
-prediction_times = [11, 15, 19, 23]
-survey_duration = 0  # in days
+# region Constants
+FLAG_EMA_ORDER_1 = 0
+FLAG_EMA_ORDER_2 = 1
+FLAG_EMA_ORDER_3 = 2
+FLAG_EMA_ORDER_4 = 3
+FLAG_INITIAL_MODEL_TRAIN = -1
 
+PREDICTION_HOURS = [11, 15, 19, 23]
+SURVEY_DURATION = 3  # in days
+
+SERVER_IP_PORT = '165.246.21.202:50051'
+MANAGER_EMAIL = 'mindscope.nsl@gmail.com'
+MANAGER_ID = 21
+CAMPAIGN_ID = 13
+# endregion
+
+
+# region Variables
 run_service = None
 thread = None
 grpc_handler = None
-manager_email = 'mindscope.nsl@gmail.com'
-manager_id = 21
-campaign_id = 13
-server_ip_port = '165.246.21.202:50051'
 
+
+# endregion
 
 def start():
     global run_service, thread
@@ -56,10 +70,11 @@ def stop():
 
 
 def service_routine():
-    job10 = schedule.every().day.at("10:45").do(prediction_task, 0)
-    job14 = schedule.every().day.at("14:45").do(prediction_task, 1)
-    job18 = schedule.every().day.at("18:45").do(prediction_task, 2)
-    job22 = schedule.every().day.at("22:05:15").do(prediction_task, 3)
+    job_regular_at_11 = schedule.every().day.at("10:45").do(prediction_task, FLAG_EMA_ORDER_1)
+    job_regular_at_15 = schedule.every().day.at("14:45").do(prediction_task, FLAG_EMA_ORDER_2)
+    job_regular_at_19 = schedule.every().day.at("18:45").do(prediction_task, FLAG_EMA_ORDER_3)
+    job_regular_at_23 = schedule.every().day.at("22:13").do(prediction_task, FLAG_EMA_ORDER_4)
+    job_initial_train = schedule.every().day.at("23:50").do(prediction_task, FLAG_INITIAL_MODEL_TRAIN)
 
     while run_service:
         try:
@@ -68,50 +83,59 @@ def service_routine():
         except KeyboardInterrupt:
             stop()
 
-    schedule.cancel_job(job=job10)
-    schedule.cancel_job(job=job14)
-    schedule.cancel_job(job=job18)
-    schedule.cancel_job(job=job22)
+    schedule.cancel_job(job=job_regular_at_11)
+    schedule.cancel_job(job=job_regular_at_15)
+    schedule.cancel_job(job=job_regular_at_19)
+    schedule.cancel_job(job=job_regular_at_23)
+    schedule.cancel_job(job=job_initial_train)
+
     exit(0)
 
 
 def prediction_task(i):
     global grpc_handler
-    print("Prediction task for {} is running... ".format(prediction_times[i]))
-    grpc_handler = GrpcHandler(server_ip_port, manager_id, manager_email, campaign_id)
+
+    if i == -1:
+        print("Initial model training task is running...")
+    else:
+        print("Regular task for hour {} is running...".format(PREDICTION_HOURS[i]))
+
+    grpc_handler = GrpcHandler(SERVER_IP_PORT, MANAGER_ID, MANAGER_EMAIL, CAMPAIGN_ID)
     print(grpc_handler)
 
     now_time = int(datetime.datetime.now().timestamp()) * 1000
     from_time = now_time - (4 * 3600 * 1000)  # from 4 hours before now time
 
     users_info = grpc_handler.grpc_load_user_emails()
-    print("User info: {}".format(users_info))
     ema_order = i + 1
 
     data_sources = grpc_handler.grpc_get_data_sources_info()
-    print("Data sources: {}".format(data_sources))
+    users_total_cnt = users_info.__len__()
+    user_current_cnt = 0
 
     for user_email, id_jointime in users_info.items():
         # TODO: temporarily check for one user
         if user_email == 'nnarziev@gmail.com':
+            user_current_cnt += 1
+            print("User {}/{} : {}".format(user_current_cnt, users_total_cnt, user_email))
             user_id = id_jointime['uid']
             day_num = joinTimestampToDayNum(id_jointime['joinedTime'])
             sm = StressModel(uid=user_email, dayNo=day_num, emaNo=ema_order)
 
-            # 1. Check if users day num is more than 14 days, only then extract features and make prediction
-            if day_num > survey_duration:
-
-                # 2. Check if the first ema order at 15th day of participation, then make initial model training
-                # TODO: uncomment the following after test
-                # if day_num == survey_duration + 1 and ema_order == 1:
+            # 1. Check if the users day num is 14 and job is for initial model training
+            if day_num == SURVEY_DURATION and i == FLAG_INITIAL_MODEL_TRAIN:
+                print("1. Initial model training...")
                 initialModelTraining(user_email, id_jointime['joinedTime'], data_sources, sm)
-
+                # 2. Check if users day num is more than 14 days, only then extract features and make prediction
+            elif day_num > SURVEY_DURATION:
+                print("2. Regular prediction...")
                 # 3. Retrieve the last 4 hours data from the gRPC server
                 data = grpc_handler.grpc_load_user_data(from_ts=from_time, uid=user_email, data_sources=data_sources, data_src_for_sleep_detection=Features.SCREEN_ON_OFF)
 
                 # 4. Extract features from retrieved data
                 with open('data_result/' + str(user_email) + "_features.p", 'rb') as file:
                     step1_preprocessed = pickle.load(file)
+
                 features = Features(uid=user_email, dataset=data, joinTimestamp=id_jointime['joinedTime'])
                 df = pd.DataFrame(features.extract_regular(start_ts=from_time, end_ts=now_time, ema_order=ema_order))
 
@@ -152,29 +176,29 @@ def prediction_task(i):
 
                 # 11. Lastly, check if user self reported his stress, then update the DB of pre-processed features with reported stress label
                 check_and_handle_self_report(user_email, data, sm)
+            else:
+                print("3. Waiting until survey completion day ({} days)...".format(SURVEY_DURATION))
 
     grpc_handler.grpc_close()
 
 
 def initialModelTraining(user_email, joined_timestamp, data_sources, stress_model):
     # first model init based on 14 days data
+
     from_time = 0  # from the very beginning of data collection
     data = grpc_handler.grpc_load_user_data(from_ts=from_time, uid=user_email, data_sources=data_sources,
                                             data_src_for_sleep_detection=Features.SCREEN_ON_OFF)
 
     features = Features(uid=user_email, dataset=data, joinTimestamp=joined_timestamp)
     df = pd.DataFrame(features.extract_for_after_survey())
-    print(df.T)
 
     # preprocessing and saving the result
     df_preprocessed = stress_model.preprocessing(df)
-    print(df_preprocessed.T)
-    with open('./data_result/' + str(user_email) + "_features.p", 'wb') as file:
+    with open('data_result/' + str(user_email) + "_features.p", 'wb') as file:
         pickle.dump(df_preprocessed, file)
 
     # normalizing
     norm_df = stress_model.normalizing("default", df_preprocessed, None)
-    print(norm_df.T)
 
     # init model
     stress_model.initModel(norm_df)
@@ -186,7 +210,7 @@ def check_and_handle_self_report(user_email, data, stress_model):
     sr_ema_order = 0
     sr_value = -1  # self report value
     if data['SELF_STRESS_REPORT'][-1][1]:  # data['SELF_STRESS_REPORT'][-1][1] takes the value of the latest SELF_STRESS_REPORT data source
-        sr_day_num, sr_ema_order, sr_value = [int(i) for i in data['SELF_STRESS_REPORT'][-1][1].split(" ")]
+        sr_day_num, sr_ema_order, yes_no, sr_value = [int(i) for i in data['SELF_STRESS_REPORT'][-1][1].split(" ")]
 
     model_result_to_update = ModelResult.objects.get(uid=user_email, day_num=sr_day_num, ema_order=sr_ema_order, prediction_result=sr_value)
     # check if this result was not already updated by the user, if it wasn't then update the user tag and re-train the model
