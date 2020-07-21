@@ -1,4 +1,4 @@
-﻿no,category,features,statement_high,statement_low
+﻿feature_id,category,features,statement_high,statement_low
 0,activity,Duration STILL,평소에 비해 움직임이 적었어요,평소에 비해 움직임이 많았어요
 1,activity,Duration WALKING,평소에 비해 움직임이 많았어요 (걷기),평소에 비해 움직임이 적었어요 (걷기)
 2,activity,Duration RUNNING,평소에 비해 움직임이 많았어요 (뛰기),평소에 비해 움직임이 적었어요 (뛰기)

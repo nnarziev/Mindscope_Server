@@ -7,7 +7,7 @@ class ModelResult(models.Model):
     day_num = models.IntegerField(default=0)
     ema_order = models.SmallIntegerField(default=0)
     prediction_result = models.SmallIntegerField(default=-1)
-    accuracy = models.SmallIntegerField(default=0)
+    accuracy = models.FloatField(default=0)
     feature_ids = models.TextField()
     model_tag = models.BooleanField(default=False)
     user_tag = models.BooleanField(default=False)

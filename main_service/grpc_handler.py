@@ -48,7 +48,7 @@ class GrpcHandler:
 
         return user_info
 
-    def grpc_get_data_sources_info(self):
+    def grpc_get_campaign_info(self):
         # retrieve campaign details --> data source ids
         request = et_service_pb2.RetrieveCampaignRequestMessage(
             userId=self.manager_id,
@@ -57,12 +57,9 @@ class GrpcHandler:
         )
         response = self.stub.retrieveCampaign(request)
         if not response.doneSuccessfully:
-            return False
-        data_sources = {}
-        for data_source in json.loads(response.configJson):
-            data_sources[data_source['name']] = data_source['data_source_id']
+            return None
 
-        return data_sources
+        return response
 
     def grpc_load_user_data(self, from_ts, uid, data_sources, data_src_for_sleep_detection):
         # retrieve data of each participant
@@ -71,7 +68,7 @@ class GrpcHandler:
             # from_time for screen on and off must be more amount of data to detect sleep duration
             if data_source_name == data_src_for_sleep_detection:
                 from_time = from_ts - 48 * 60 * 60 * 1000
-            elif data_source_name == Features.LOCATIONS_MANUAL:  # take all data for LOCATIONS_MANUAL
+            elif data_source_name == Features.LOCATIONS_MANUAL or data_source_name == Features.STRESS_LVL_THRESHOLDS:  # take all data for LOCATIONS_MANUAL and STRESS_LVL_THRESHOLDS
                 from_time = 0
             else:
                 from_time = from_ts
