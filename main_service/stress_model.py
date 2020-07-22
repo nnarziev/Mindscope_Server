@@ -222,11 +222,11 @@ class StressModel:
 
         return model_results
 
-    def update(self, user_response):
+    def update(self, user_response, day_num, ema_order):
         # update Dataframe
         with open('data_result/' + str(self.uid) + "_features.p", 'rb') as file:
             preprocessed = pickle.load(file)
-            preprocessed[(preprocessed['Day'] == self.dayNo) & (preprocessed['EMA order'] == self.emaNo)][
+            preprocessed[(preprocessed['Day'] == day_num) & (preprocessed['EMA order'] == ema_order)][
                 'Stress_label'] = user_response
 
             with open('data_result/' + str(self.uid) + "_features.p", 'wb') as file:
@@ -237,7 +237,7 @@ class StressModel:
         StressModel.initModel(self, norm_df)
 
         # update ModelResult Table
-        model_result = ModelResult.objects.get(uid=self.uid, day_num=self.dayNo, ema_order=self.emaNo,
+        model_result = ModelResult.objects.get(uid=self.uid, day_num=day_num, ema_order=ema_order,
                                                prediction_result=user_response)
         model_result.user_tag = True
         model_result.save()

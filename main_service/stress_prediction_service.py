@@ -72,7 +72,7 @@ def stop():
 
 
 def service_routine():
-    prediction_task(FLAG_EMA_ORDER_4)
+    prediction_task(FLAG_EMA_ORDER_2)
     # job_regular_at_11 = schedule.every().day.at("10:45").do(prediction_task, FLAG_EMA_ORDER_1)
     # job_regular_at_15 = schedule.every().day.at("14:45").do(prediction_task, FLAG_EMA_ORDER_2)
     # job_regular_at_19 = schedule.every().day.at("18:45").do(prediction_task, FLAG_EMA_ORDER_3)
@@ -136,82 +136,83 @@ def prediction_task(i):
 
     for user_email, id_jointime in users_info.items():
         # TODO: temporarily check for one user
-        # if user_email == 'nnarziev@gmail.com':
-        user_current_cnt += 1
-        print("User {}/{} : {}".format(user_current_cnt, users_total_cnt, user_email))
-        user_id = id_jointime['uid']
-        day_num = fromNowToGivenTimeToDayNum(id_jointime['joinedTime'])
-        threshold_data = grpc_handler.grpc_load_user_data(from_ts=0, uid=user_email, data_sources={Features.STRESS_LVL_THRESHOLDS: data_sources[Features.STRESS_LVL_THRESHOLDS]}, data_src_for_sleep_detection=None)
-        stress_lv0_max = 0
-        stress_lv1_max = 0
-        stress_lv2_min = 0
+        if user_email == 'nnarziev@gmail.com':
+            user_current_cnt += 1
+            print("User {}/{} : {}".format(user_current_cnt, users_total_cnt, user_email))
+            user_id = id_jointime['uid']
+            day_num = fromNowToGivenTimeToDayNum(id_jointime['joinedTime'])
+            threshold_data = grpc_handler.grpc_load_user_data(from_ts=0, uid=user_email, data_sources={Features.STRESS_LVL_THRESHOLDS: data_sources[Features.STRESS_LVL_THRESHOLDS]}, data_src_for_sleep_detection=None)
+            stress_lv0_max = 0
+            stress_lv1_max = 0
+            stress_lv2_min = 0
 
-        if list(threshold_data[Features.STRESS_LVL_THRESHOLDS]).__len__() > 0:
-            for item in reversed(threshold_data[Features.STRESS_LVL_THRESHOLDS]):
-                stress_lv0_max, stress_lv1_max, stress_lv2_min = item[1].split(" ")
-                break
+            if list(threshold_data[Features.STRESS_LVL_THRESHOLDS]).__len__() > 0:
+                for item in reversed(threshold_data[Features.STRESS_LVL_THRESHOLDS]):
+                    stress_lv0_max, stress_lv1_max, stress_lv2_min = item[1].split(" ")
+                    break
 
-        sm = StressModel(user_email, day_num, ema_order, float(stress_lv0_max), float(stress_lv1_max), float(stress_lv2_min))
+            sm = StressModel(user_email, day_num, ema_order, float(stress_lv0_max), float(stress_lv1_max), float(stress_lv2_min))
 
-        # 1. Check if the users day num is 14 and job is for initial model training
-        if day_num == SURVEY_DURATION and i == FLAG_INITIAL_MODEL_TRAIN:
-            print("1. Initial model training...")
-            from_time = 0  # from the very beginning of data collection
-            data = grpc_handler.grpc_load_user_data(from_ts=from_time, uid=user_email, data_sources=data_sources,
-                                                    data_src_for_sleep_detection=Features.SCREEN_ON_OFF)
-            initialModelTraining(data, user_email, id_jointime['joinedTime'], sm)
-            # 2. Check if users day num is more than 14 days, only then extract features and make prediction
-        elif day_num > SURVEY_DURATION:
-            print("2. Regular prediction...")
-            # 3. Retrieve the last 4 hours data from the gRPC server
-            data = grpc_handler.grpc_load_user_data(from_ts=from_time, uid=user_email, data_sources=data_sources, data_src_for_sleep_detection=Features.SCREEN_ON_OFF)
+            # 1. Check if the users day num is 14 and job is for initial model training
+            if day_num == SURVEY_DURATION and i == FLAG_INITIAL_MODEL_TRAIN:
+                print("1. Initial model training...")
+                from_time = 0  # from the very beginning of data collection
+                data = grpc_handler.grpc_load_user_data(from_ts=from_time, uid=user_email, data_sources=data_sources,
+                                                        data_src_for_sleep_detection=Features.SCREEN_ON_OFF)
+                initialModelTraining(data, user_email, id_jointime['joinedTime'], sm)
+                # 2. Check if users day num is more than 14 days, only then extract features and make prediction
+            elif day_num > SURVEY_DURATION:
+                print("2. Regular prediction...")
+                # 3. Retrieve the last 4 hours data from the gRPC server
+                data = grpc_handler.grpc_load_user_data(from_ts=from_time, uid=user_email, data_sources=data_sources, data_src_for_sleep_detection=Features.SCREEN_ON_OFF)
 
-            # 4. Extract features from retrieved data
-            with open('data_result/' + str(user_email) + "_features.p", 'rb') as file:
-                step1_preprocessed = pickle.load(file)
+                # 4. Extract features from retrieved data
+                with open('data_result/' + str(user_email) + "_features.p", 'rb') as file:
+                    step1_preprocessed = pickle.load(file)
 
-            features = Features(uid=user_email, dataset=data, joinTimestamp=id_jointime['joinedTime'])
-            df = pd.DataFrame(features.extract_regular(start_ts=from_time, end_ts=now_time, ema_order=ema_order))
+                features = Features(uid=user_email, dataset=data, joinTimestamp=id_jointime['joinedTime'])
+                df = pd.DataFrame(features.extract_regular(start_ts=from_time, end_ts=now_time, ema_order=ema_order))
 
-            # 5. Pre-process and normalize the extracted features
-            new_row_preprocessed = sm.preprocessing(df=df, prep_type=None)
-            norm_df = sm.normalizing("new", step1_preprocessed, new_row_preprocessed, user_email, day_num, ema_order)
-            new_row_for_test = norm_df[(norm_df['Day'] == day_num) & (norm_df['EMA order'] == ema_order)]  # get test data
+                # 5. Pre-process and normalize the extracted features
+                new_row_preprocessed = sm.preprocessing(df=df, prep_type=None)
+                norm_df = sm.normalizing("new", step1_preprocessed, new_row_preprocessed, user_email, day_num, ema_order)
+                new_row_for_test = norm_df[(norm_df['Day'] == day_num) & (norm_df['EMA order'] == ema_order)]  # get test data
 
-            # 6. Get trained stress prediction model
-            with open('model_result/' + str(user_email) + "_model.p", 'rb') as file:
-                initModel = pickle.load(file)
+                # 6. Get trained stress prediction model
+                with open('model_result/' + str(user_email) + "_model.p", 'rb') as file:
+                    initModel = pickle.load(file)
 
-            # 7. Make prediction using current extracted features
-            features = StressModel.feature_df_with_state['features'].values
-            y_pred = initModel.predict(new_row_for_test[features])
-            new_row_preprocessed['Stress_label'] = y_pred
+                # 7. Make prediction using current extracted features
+                features = StressModel.feature_df_with_state['features'].values
+                y_pred = initModel.predict(new_row_for_test[features])
+                new_row_preprocessed['Stress_label'] = y_pred
 
-            # 8. Insert a new pre-processed feature entry together with it's predicted label in DB for further model re-train
-            update_df = pd.concat([step1_preprocessed.reset_index(drop=True), new_row_preprocessed.reset_index(drop=True)])
-            with open('data_result/' + str(user_email) + "_features.p", 'wb') as file:
-                pickle.dump(update_df, file)
+                # 8. Insert a new pre-processed feature entry together with it's predicted label in DB for further model re-train
+                update_df = pd.concat([step1_preprocessed.reset_index(drop=True), new_row_preprocessed.reset_index(drop=True)])
+                with open('data_result/' + str(user_email) + "_features.p", 'wb') as file:
+                    pickle.dump(update_df, file)
 
-            # 9. Save prediction and important features in DB
-            user_all_labels = list(set(step1_preprocessed['Stress_label']))
-            model_results = list(sm.saveAndGetSHAP(user_all_labels, y_pred, new_row_for_test, initModel))  # saves results on ModelResult table in DB
+                # 9. Save prediction and important features in DB
+                user_all_labels = list(set(step1_preprocessed['Stress_label']))
+                model_results = list(sm.saveAndGetSHAP(user_all_labels, y_pred, new_row_for_test, initModel))  # saves results on ModelResult table in DB
 
-            # 10. Construct a result message and send it to gRPC server with "STRESS_PREDICTION" data source id
-            result_data = {}
-            for model_result in model_results:
-                result_data[str(model_result.prediction_result)] = {
-                    "day_num": model_result.day_num,
-                    "ema_order": model_result.ema_order,
-                    "accuracy": model_result.accuracy,
-                    "feature_ids": model_result.feature_ids,
-                    "model_tag": model_result.model_tag
-                }
-            grpc_handler.grpc_send_user_data(user_id, user_email, data_sources[Features.STRESS_PREDICTION], now_time, str(result_data))
+                # 10. Construct a result message and send it to gRPC server with "STRESS_PREDICTION" data source id
+                result_data = {}
+                for model_result in model_results:
+                    result_data[str(model_result.prediction_result)] = {
+                        "day_num": model_result.day_num,
+                        "ema_order": model_result.ema_order,
+                        "accuracy": model_result.accuracy,
+                        "feature_ids": model_result.feature_ids,
+                        "model_tag": model_result.model_tag
+                    }
+                if result_data:
+                    grpc_handler.grpc_send_user_data(user_id, user_email, data_sources[Features.STRESS_PREDICTION], now_time, str(result_data))
 
-            # 11. Lastly, check if user self reported his stress, then update the DB of pre-processed features with reported stress label
-            check_and_handle_self_report(user_email, data, sm)
-        else:
-            print("3. Waiting until survey completion day ({} days)...".format(SURVEY_DURATION))
+                # 11. Lastly, check if user self reported his stress, then update the DB of pre-processed features with reported stress label
+                check_and_handle_self_report(user_email, data, sm)
+            else:
+                print("3. Waiting until survey completion day ({} days)...".format(SURVEY_DURATION))
 
     grpc_handler.grpc_close()
 
@@ -241,12 +242,12 @@ def check_and_handle_self_report(user_email, data, stress_model):
     sr_ema_order = 0
     sr_value = -1  # self report value
     if data['SELF_STRESS_REPORT'][-1][1]:  # data['SELF_STRESS_REPORT'][-1][1] takes the value of the latest SELF_STRESS_REPORT data source
-        sr_day_num, sr_ema_order, yes_no, sr_value = [int(i) for i in data['SELF_STRESS_REPORT'][-1][1].split(" ")]
+        timestamp, sr_day_num, sr_ema_order, sr_value, prediction_lvl, accuracy, feature_ids, yes_no = [int(i) for i in data['SELF_STRESS_REPORT'][-1][1].split(" ")]
 
     model_result_to_update = ModelResult.objects.get(uid=user_email, day_num=sr_day_num, ema_order=sr_ema_order, prediction_result=sr_value)
     # check if this result was not already updated by the user, if it wasn't then update the user tag and re-train the model
     if model_result_to_update.user_tag == False:
-        stress_model.update(sr_value)
+        stress_model.update(sr_value, model_result_to_update.day_num, model_result_to_update.ema_order)
 
 
 def fromNowToGivenTimeToDayNum(givenTimestamp):
