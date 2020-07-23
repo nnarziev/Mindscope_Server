@@ -95,7 +95,8 @@ class GrpcHandler:
     def grpc_send_user_data(self, user_id, user_email, data_src, timestamp, value):
         req = et_service_pb2.SubmitDataRecordsRequestMessage(
             userId=user_id,
-            email=user_email
+            email=user_email,
+            campaignId=self.campaign_id
         )
         req.timestamp.extend([timestamp])
         req.dataSource.extend([data_src])
