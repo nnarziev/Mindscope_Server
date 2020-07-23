@@ -72,26 +72,24 @@ def stop():
 
 
 def service_routine():
-    prediction_task(FLAG_EMA_ORDER_2)
-    # job_regular_at_11 = schedule.every().day.at("10:45").do(prediction_task, FLAG_EMA_ORDER_1)
-    # job_regular_at_15 = schedule.every().day.at("14:45").do(prediction_task, FLAG_EMA_ORDER_2)
-    # job_regular_at_19 = schedule.every().day.at("18:45").do(prediction_task, FLAG_EMA_ORDER_3)
-    # job_regular_at_23 = schedule.every().day.at("22:45").do(prediction_task, FLAG_EMA_ORDER_4)
-    #
-    # job_initial_train = schedule.every().day.at("23:50").do(prediction_task, FLAG_INITIAL_MODEL_TRAIN)
-    #
-    # while run_service:
-    #     try:
-    #         schedule.run_pending()
-    #         time.sleep(1)
-    #     except KeyboardInterrupt:
-    #         stop()
-    #
-    # schedule.cancel_job(job=job_regular_at_11)
-    # schedule.cancel_job(job=job_regular_at_15)
-    # schedule.cancel_job(job=job_regular_at_19)
-    # schedule.cancel_job(job=job_regular_at_23)
-    # schedule.cancel_job(job=job_initial_train)
+    job_regular_at_11 = schedule.every().day.at("10:45").do(prediction_task, FLAG_EMA_ORDER_1)
+    job_regular_at_15 = schedule.every().day.at("14:45").do(prediction_task, FLAG_EMA_ORDER_2)
+    job_regular_at_19 = schedule.every().day.at("18:45").do(prediction_task, FLAG_EMA_ORDER_3)
+    job_regular_at_23 = schedule.every().day.at("22:45").do(prediction_task, FLAG_EMA_ORDER_4)
+    job_initial_train = schedule.every().day.at("23:50").do(prediction_task, FLAG_INITIAL_MODEL_TRAIN)
+
+    while run_service:
+        try:
+            schedule.run_pending()
+            time.sleep(1)
+        except KeyboardInterrupt:
+            stop()
+
+    schedule.cancel_job(job=job_regular_at_11)
+    schedule.cancel_job(job=job_regular_at_15)
+    schedule.cancel_job(job=job_regular_at_19)
+    schedule.cancel_job(job=job_regular_at_23)
+    schedule.cancel_job(job=job_initial_train)
 
     exit(0)
 
@@ -136,7 +134,7 @@ def prediction_task(i):
 
     for user_email, id_jointime in users_info.items():
         # TODO: temporarily check for one user
-        if user_email == 'nnarziev@gmail.com':
+        if user_email == 'hrgoh@nsl.inha.ac.kr':
             user_current_cnt += 1
             print("User {}/{} : {}".format(user_current_cnt, users_total_cnt, user_email))
             user_id = id_jointime['uid']

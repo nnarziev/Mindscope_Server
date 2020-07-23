@@ -186,8 +186,11 @@ class StressModel:
         expected_value = explainer.expected_value
 
         try:
-            for label in user_all_label:  # 유저한테 있는 Stress label 에 따라
+            ## changed 0723
+            check_label = [0 for i in range(3)]
 
+            for label in user_all_label:  # 유저한테 있는 Stress label 에 따라
+                check_label[label] = 1
                 feature_list = ""
 
                 index = user_all_label.index(label)
@@ -217,6 +220,25 @@ class StressModel:
                                                               feature_ids=feature_list)
 
                 model_results.append(model_result)
+
+            ## changed 0723
+            ## For 문 끝난 후, model_result 에 없는 stress lvl 추가
+            for i in range(3):
+                if check_label[i] == 0:
+
+                    if i == 0 : # LOW General message
+                        feature_list = '0-general_0 7-general_0 12-general_0 18-general_0 29-general_0'
+                        model_result = ModelResult.objects.create(uid=self.uid, day_num=self.dayNo, ema_order=self.emaNo,
+                                                                  prediction_result=i, accuracy=0,feature_ids=[feature_list])
+                    else: #LITTLE HIGH, HIGH General message
+                        feature_list = '0-general_1 7-general_1 12-general_1 18-general_1 29-general_1'
+                        model_result = ModelResult.objects.create(uid=self.uid, day_num=self.dayNo,
+                                                                  ema_order=self.emaNo,
+                                                                  prediction_result=i, accuracy=0,
+                                                                  feature_ids=[feature_list])
+                    model_results.append(model_result)
+
+
         except Exception as e:
             print(e)
 
