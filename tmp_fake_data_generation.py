@@ -13,49 +13,32 @@ user_id2 = 23
 
 campaign_id = 13
 
-times1 = [1594777680000, 1594792080000, 1594806480000, 1594820880000]
-values1 = [
-    {
-        '1': {'feature_ids': '29-low 24-low 20-low 8-low 21-low 10-high 6-low 2-low 26-low 28-low ', 'ema_order': 4, 'accuracy': 0.15517857142857144, 'model_tag': False, 'day_num': 6},
-        '0': {'feature_ids': '25-low 11-low 5-low 19-low 0-low 18-low 7-low 1-low 14-low 9-low 12-low 22-low 13-low 3-low ', 'ema_order': 4, 'accuracy': 0.8448214285714286, 'model_tag': True, 'day_num': 6}
-    },
-    {
-        '1': {'feature_ids': '29-low 24-low 20-low 8-low 21-low 10-high 6-low 2-low 26-low 28-low ', 'ema_order': 4, 'accuracy': 0.15517857142857144, 'model_tag': True, 'day_num': 6},
-        '0': {'feature_ids': '25-low 11-low 5-low 19-low 0-low 18-low 7-low 1-low 14-low 9-low 12-low 22-low 13-low 3-low ', 'ema_order': 4, 'accuracy': 0.8448214285714286, 'model_tag': False, 'day_num': 6},
-        '2': {'feature_ids': '25-low 11-low 5-low 19-low 0-low 18-low 7-low 1-low 14-low 9-low 12-low 22-low 13-low 3-low ', 'ema_order': 4, 'accuracy': 0.8448214285714286, 'model_tag': False, 'day_num': 6}
-    },
-    {
-        '1': {'feature_ids': '29-low 24-low 20-low 8-low 21-low 10-high 6-low 2-low 26-low 28-low ', 'ema_order': 4, 'accuracy': 0.15517857142857144, 'model_tag': False, 'day_num': 6},
-        '0': {'feature_ids': '25-low 11-low 5-low 19-low 0-low 18-low 7-low 1-low 14-low 9-low 12-low 22-low 13-low 3-low ', 'ema_order': 4, 'accuracy': 0.8448214285714286, 'model_tag': False, 'day_num': 6},
-        '2': {'feature_ids': '25-low 11-low 5-low 19-low 0-low 18-low 7-low 1-low 14-low 9-low 12-low 22-low 13-low 3-low ', 'ema_order': 4, 'accuracy': 0.8448214285714286, 'model_tag': True, 'day_num': 6}
-    },
-    {
-        '1': {'feature_ids': '29-low 24-low 20-low 8-low 21-low 10-high 6-low 2-low 26-low 28-low ', 'ema_order': 4, 'accuracy': 0.15517857142857144, 'model_tag': True, 'day_num': 6},
-        '0': {'feature_ids': '25-low 11-low 5-low 19-low 0-low 18-low 7-low 1-low 14-low 9-low 12-low 22-low 13-low 3-low ', 'ema_order': 4, 'accuracy': 0.8448214285714286, 'model_tag': False, 'day_num': 6}
-    }
-
-]
-
-times2 = [1595209680000, 1595224080000, 1595238480000, 1595252880000]
-values2 = [
-    {
-        '1': {'feature_ids': '29-low 24-low 20-low 8-low 21-low 10-high 6-low 2-low 26-low 28-low ', 'ema_order': 4, 'accuracy': 0.15517857142857144, 'model_tag': False, 'day_num': 6},
-        '0': {'feature_ids': '25-low 11-low 5-low 19-low 0-low 18-low 7-low 1-low 14-low 9-low 12-low 22-low 13-low 3-low ', 'ema_order': 4, 'accuracy': 0.8448214285714286, 'model_tag': True, 'day_num': 6}
-    },
-    {
-        '1': {'feature_ids': '29-low 24-low 20-low 8-low 21-low 10-high 6-low 2-low 26-low 28-low ', 'ema_order': 4, 'accuracy': 0.15517857142857144, 'model_tag': False, 'day_num': 6},
-        '0': {'feature_ids': '25-low 11-low 5-low 19-low 0-low 18-low 7-low 1-low 14-low 9-low 12-low 22-low 13-low 3-low ', 'ema_order': 4, 'accuracy': 0.8448214285714286, 'model_tag': True, 'day_num': 6},
-        '2': {'feature_ids': '25-low 11-low 5-low 19-low 0-low 18-low 7-low 1-low 14-low 9-low 12-low 22-low 13-low 3-low ', 'ema_order': 4, 'accuracy': 0.8448214285714286, 'model_tag': False, 'day_num': 6}
-    },
-    {
-        '1': {'feature_ids': '29-low 24-low 20-low 8-low 21-low 10-high 6-low 2-low 26-low 28-low ', 'ema_order': 4, 'accuracy': 0.15517857142857144, 'model_tag': False, 'day_num': 6},
-        '0': {'feature_ids': '25-low 11-low 5-low 19-low 0-low 18-low 7-low 1-low 14-low 9-low 12-low 22-low 13-low 3-low ', 'ema_order': 4, 'accuracy': 0.8448214285714286, 'model_tag': True, 'day_num': 6},
-        '2': {'feature_ids': '25-low 11-low 5-low 19-low 0-low 18-low 7-low 1-low 14-low 9-low 12-low 22-low 13-low 3-low ', 'ema_order': 4, 'accuracy': 0.8448214285714286, 'model_tag': False, 'day_num': 6}
-    },
-    {
-        '1': {'feature_ids': '29-low 24-low 20-low 8-low 21-low 10-high 6-low 2-low 26-low 28-low ', 'ema_order': 4, 'accuracy': 0.15517857142857144, 'model_tag': True, 'day_num': 6},
-        '0': {'feature_ids': '25-low 11-low 5-low 19-low 0-low 18-low 7-low 1-low 14-low 9-low 12-low 22-low 13-low 3-low ', 'ema_order': 4, 'accuracy': 0.8448214285714286, 'model_tag': False, 'day_num': 6}
-    }
+times = [1594777680000, 1594792080000, 1594806480000, 1594820880000, 1595209680000, 1595224080000, 1595238480000, 1595252880000]
+values = [
+    {'1': {'feature_ids': '29-low 24-low 20-low 8-low 21-low 10-high 6-low 2-low 26-low 28-low ', 'ema_order': 1, 'accuracy': 0.15517857142857144, 'model_tag': False, 'day_num': 6},
+     '0': {'feature_ids': '25-low 11-low 5-low 19-low 0-low 18-low 7-low 1-low 14-low 9-low 12-low 22-low 13-low 3-low ', 'ema_order': 1, 'accuracy': 0.8448214285714286, 'model_tag': True, 'day_num': 6},
+     '2': {'feature_ids': '0-general_1 7-general_1 12-general_1 18-general_1 feature_29general_1', 'ema_order': 1, 'accuracy': 0.8448214285714286, 'model_tag': False, 'day_num': 6}},
+    {'1': {'feature_ids': '29-low 24-low 20-low 8-low 21-low 10-high 6-low 2-low 26-low 28-low ', 'ema_order': 2, 'accuracy': 0.15517857142857144, 'model_tag': True, 'day_num': 6},
+     '0': {'feature_ids': '25-low 11-low 5-low 19-low 0-low 18-low 7-low 1-low 14-low 9-low 12-low 22-low 13-low 3-low ', 'ema_order': 2, 'accuracy': 0.8448214285714286, 'model_tag': False, 'day_num': 6},
+     '2': {'feature_ids': '25-low 11-low 5-low 19-low 0-low 18-low 7-low 1-low 14-low 9-low 12-low 22-low 13-low 3-low ', 'ema_order': 2, 'accuracy': 0.8448214285714286, 'model_tag': False, 'day_num': 6}},
+    {'1': {'feature_ids': '29-low 24-low 20-low 8-low 21-low 10-high 6-low 2-low 26-low 28-low ', 'ema_order': 3, 'accuracy': 0.15517857142857144, 'model_tag': False, 'day_num': 6},
+     '0': {'feature_ids': '25-low 11-low 5-low 19-low 0-low 18-low 7-low 1-low 14-low 9-low 12-low 22-low 13-low 3-low ', 'ema_order': 3, 'accuracy': 0.8448214285714286, 'model_tag': False, 'day_num': 6},
+     '2': {'feature_ids': '25-low 11-low 5-low 19-low 0-low 18-low 7-low 1-low 14-low 9-low 12-low 22-low 13-low 3-low ', 'ema_order': 3, 'accuracy': 0.8448214285714286, 'model_tag': True, 'day_num': 6}},
+    {'1': {'feature_ids': '29-low 24-low 20-low 8-low 21-low 10-high 6-low 2-low 26-low 28-low ', 'ema_order': 4, 'accuracy': 0.15517857142857144, 'model_tag': True, 'day_num': 6},
+     '0': {'feature_ids': '25-low 11-low 5-low 19-low 0-low 18-low 7-low 1-low 14-low 9-low 12-low 22-low 13-low 3-low ', 'ema_order': 4, 'accuracy': 0.8448214285714286, 'model_tag': False, 'day_num': 6},
+     '2': {'feature_ids': '0-general_1 7-general_1 12-general_1 18-general_1 feature_29general_1', 'ema_order': 4, 'accuracy': 0.8448214285714286, 'model_tag': False, 'day_num': 6}},
+    {'1': {'feature_ids': '29-low 24-low 20-low 8-low 21-low 10-high 6-low 2-low 26-low 28-low ', 'ema_order': 1, 'accuracy': 0.15517857142857144, 'model_tag': False, 'day_num': 11},
+     '0': {'feature_ids': '25-low 11-low 5-low 19-low 0-low 18-low 7-low 1-low 14-low 9-low 12-low 22-low 13-low 3-low ', 'ema_order': 1, 'accuracy': 0.8448214285714286, 'model_tag': True, 'day_num': 11},
+     '2': {'feature_ids': '0-general_1 7-general_1 12-general_1 18-general_1 feature_29general_1', 'ema_order': 1, 'accuracy': 0.8448214285714286, 'model_tag': False, 'day_num': 11}},
+    {'1': {'feature_ids': '29-low 24-low 20-low 8-low 21-low 10-high 6-low 2-low 26-low 28-low ', 'ema_order': 2, 'accuracy': 0.15517857142857144, 'model_tag': True, 'day_num': 11},
+     '0': {'feature_ids': '25-low 11-low 5-low 19-low 0-low 18-low 7-low 1-low 14-low 9-low 12-low 22-low 13-low 3-low ', 'ema_order': 2, 'accuracy': 0.8448214285714286, 'model_tag': False, 'day_num': 11},
+     '2': {'feature_ids': '25-low 11-low 5-low 19-low 0-low 18-low 7-low 1-low 14-low 9-low 12-low 22-low 13-low 3-low ', 'ema_order': 2, 'accuracy': 0.8448214285714286, 'model_tag': False, 'day_num': 11}},
+    {'1': {'feature_ids': '29-low 24-low 20-low 8-low 21-low 10-high 6-low 2-low 26-low 28-low ', 'ema_order': 3, 'accuracy': 0.15517857142857144, 'model_tag': False, 'day_num': 11},
+     '0': {'feature_ids': '25-low 11-low 5-low 19-low 0-low 18-low 7-low 1-low 14-low 9-low 12-low 22-low 13-low 3-low ', 'ema_order': 3, 'accuracy': 0.8448214285714286, 'model_tag': False, 'day_num': 11},
+     '2': {'feature_ids': '25-low 11-low 5-low 19-low 0-low 18-low 7-low 1-low 14-low 9-low 12-low 22-low 13-low 3-low ', 'ema_order': 3, 'accuracy': 0.8448214285714286, 'model_tag': True, 'day_num': 11}},
+    {'1': {'feature_ids': '0-general_1 7-general_1 12-general_1 18-general_1 feature_29general_1 ', 'ema_order': 4, 'accuracy': 0.15517857142857144, 'model_tag': False, 'day_num': 11},
+     '0': {'feature_ids': '25-low 11-low 5-low 19-low 0-low 18-low 7-low 1-low 14-low 9-low 12-low 22-low 13-low 3-low ', 'ema_order': 4, 'accuracy': 0.8448214285714286, 'model_tag': True, 'day_num': 11},
+     '2': {'feature_ids': '0-general_1 7-general_1 12-general_1 18-general_1 feature_29general_1', 'ema_order': 4, 'accuracy': 0.8448214285714286, 'model_tag': False, 'day_num': 11}}
 ]
 
 # values = []
@@ -111,16 +94,16 @@ values2 = [
 # ]
 
 print("User 1")
-for index, value in enumerate(values1):
+for index, value in enumerate(values):
     req = et_service_pb2.SubmitDataRecordsRequestMessage(
         userId=user_id1,
         email=user_email1,
         campaignId=campaign_id
     )
     req.dataSource.extend([56])
-    req.timestamp.extend([times1[index]])
+    req.timestamp.extend([times[index]])
     req.accuracy.extend([1])
-    req.values.extend([str(values1[index])])
+    req.values.extend([str(values[index])])
     res = stub.submitDataRecords(req)
 
     print(res)
@@ -130,16 +113,16 @@ for index, value in enumerate(values1):
         print('failed to submit')
 
 print("User 2")
-for index, value in enumerate(values2):
+for index, value in enumerate(values):
     req = et_service_pb2.SubmitDataRecordsRequestMessage(
         userId=user_id2,
         email=user_email2,
         campaignId=campaign_id
     )
     req.dataSource.extend([56])
-    req.timestamp.extend([times2[index]])
+    req.timestamp.extend([times[index]])
     req.accuracy.extend([1])
-    req.values.extend([str(values2[index])])
+    req.values.extend([str(values[index])])
     res = stub.submitDataRecords(req)
 
     print(res)
